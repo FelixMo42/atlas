@@ -1,9 +1,10 @@
 use crate::core::Value;
 
 #[derive(PartialEq)]
-pub enum Token {
+pub enum Token<'a> {
     Op(char),
     Value(Value),
+    Ident(&'a str),
     Err,
 }
 
@@ -25,35 +26,34 @@ pub fn get_token(src: &str) -> (Token, usize) {
                     '(' => return (Token::Op('('), 1),
                     ')' => return (Token::Op(')'), 1),
                     '0'..='9' => 1,
+                    'a'..='z' | 'A'..='Z' | '_' => 4,
                     '.' => 3,
                     _ => return (Token::Err, 1),
                 }
             }
-            1 /* number */ => {
-                match chr {
-                    '0'..='9' => 1,
-                    '.' => 2,
-                    _ => return (Token::Value(Value::I32(src[..len]
-                        .parse()
-                        .expect("unexpecter error parsing int token")
-                    )), len)
-                }
-            }
-            2 /* float */ => {
-                match chr {
-                    '0'..='9' => 2,
-                    _ => return (Token::Value(Value::F64(src[..len]
-                        .parse()
-                        .expect("unexpected error parsing float token")
-                    )), len),
-                }
-            }
-            3 /* dot or float */ => {
-                match chr {
-                    '0'..='9' => 3,
-                    _ => return (Token::Err, 1),
-                }
-            }
+            1 /* number */ => match chr {
+                '0'..='9' => 1,
+                '.' => 2,
+                _ => return (Token::Value(Value::I32(src[..len]
+                    .parse()
+                    .expect("unexpecter error parsing int token")
+                )), len)
+            },
+            2 /* float */ => match chr {
+                '0'..='9' => 2,
+                _ => return (Token::Value(Value::F64(src[..len]
+                    .parse()
+                    .expect("unexpected error parsing float token")
+                )), len),
+            },
+            3 /* dot or float */ => match chr {
+                '0'..='9' => 3,
+                _ => return (Token::Err, 1),
+            },
+            4 /* ident */ => match chr {
+                'a'..='z' | 'A'..='Z' | '_' => 4,
+                _ => return (Token::Ident(&src[..len]), len),
+            },
             _ => unreachable!()
         };
 

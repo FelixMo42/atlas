@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.0.3
+
+### Added
+
+- The constant pi
+- The add and sub functions
+- The ability to call functions!
+
 ## v0.0.2
 
 ### Added
