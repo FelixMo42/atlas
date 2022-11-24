@@ -1,5 +1,6 @@
 use crate::core::Value;
 
+#[derive(PartialEq)]
 pub enum Token {
     Op(char),
     Value(Value),
@@ -21,6 +22,8 @@ pub fn get_token(src: &str) -> (Token, usize) {
                     '+' => return (Token::Op('+'), 1),
                     '*' => return (Token::Op('*'), 1),
                     '/' => return (Token::Op('/'), 1),
+                    '(' => return (Token::Op('('), 1),
+                    ')' => return (Token::Op(')'), 1),
                     '0'..='9' => 1,
                     '.' => 3,
                     _ => return (Token::Err, 1),

@@ -42,21 +42,52 @@ impl Node {
 pub fn parse_value(lex: &mut Lexer) -> Node {
     match lex.next() {
         Token::Op('-') => Node::Negative(Box::new(parse_value(lex))),
+        Token::Op('(') => {
+            let expr = parse_expr(lex);
+            lex.log();
+            if lex.next() == Token::Op(')') {
+                expr
+            } else {
+                Node::Error
+            }
+        }
         Token::Value(value) => Node::Value(value),
         _ => Node::Error,
     }
 }
 
-pub fn parse_expr(lex: &mut Lexer) -> Node {
+pub fn parse_mul(lex: &mut Lexer) -> Node {
     let a = parse_value(lex);
 
+    let save = lex.save();
+
     match lex.next() {
-        Token::Op('+') => Node::Add(Box::new(a), Box::new(parse_value(lex))),
-        Token::Op('-') => Node::Sub(Box::new(a), Box::new(parse_value(lex))),
-        Token::Op('*') => Node::Mul(Box::new(a), Box::new(parse_value(lex))),
-        Token::Op('/') => Node::Div(Box::new(a), Box::new(parse_value(lex))),
-        _ => a,
+        Token::Op('*') => Node::Mul(Box::new(a), Box::new(parse_mul(lex))),
+        Token::Op('/') => Node::Div(Box::new(a), Box::new(parse_mul(lex))),
+        _ => {
+            lex.load(save);
+            a
+        }
     }
+}
+
+pub fn parse_add(lex: &mut Lexer) -> Node {
+    let a = parse_mul(lex);
+
+    let save = lex.save();
+
+    match lex.next() {
+        Token::Op('+') => Node::Add(Box::new(a), Box::new(parse_add(lex))),
+        Token::Op('-') => Node::Sub(Box::new(a), Box::new(parse_add(lex))),
+        _ => {
+            lex.load(save);
+            a
+        }
+    }
+}
+
+pub fn parse_expr(lex: &mut Lexer) -> Node {
+    return parse_add(lex);
 }
 
 pub fn exec(src: &str) -> Value {
@@ -95,5 +126,21 @@ mod tests {
         assert_eq!(exec("40 / 2"), Value::I32(20));
         assert_eq!(exec("40 - 2"), Value::I32(38));
         assert_eq!(exec("2 - 40"), Value::I32(-38));
+        assert_eq!(exec("2 + -40"), Value::I32(-38));
+
+        assert_eq!(exec("80 + 40 - 78"), Value::I32(42));
+        assert_eq!(exec("2 + 20 * 2"), Value::I32(42));
+        assert_eq!(exec("20 * 2 + 2"), Value::I32(42));
+        assert_eq!(exec("1 + 20 * 2 + 1"), Value::I32(42));
+        assert_eq!(exec("20 * 2 + 20 / 2"), Value::I32(50));
+    }
+
+    #[test]
+    fn test_paren() {
+        assert_eq!(exec("(42)"), Value::I32(42));
+        assert_eq!(exec("(40) + 2"), Value::I32(42));
+        assert_eq!(exec("(40 + 2)"), Value::I32(42));
+        assert_eq!(exec("40 + (2)"), Value::I32(42));
+        assert_eq!(exec("(((40)) + (2))"), Value::I32(42));
     }
 }
