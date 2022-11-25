@@ -10,6 +10,7 @@ use crate::lexer::*;
 
 fn main() {}
 
+#[derive(PartialEq)]
 pub enum Node {
     // base
     Value(Value),
@@ -25,6 +26,10 @@ pub enum Node {
     Sub(Box<Node>, Box<Node>),
     Mul(Box<Node>, Box<Node>),
     Div(Box<Node>, Box<Node>),
+    Eq(Box<Node>, Box<Node>),
+
+    // flow
+    If(Box<Node>, Box<Node>, Box<Node>),
 }
 
 impl Node {
@@ -36,8 +41,14 @@ impl Node {
             Node::Sub(a, b) => a.exec().sub(b.exec()),
             Node::Mul(a, b) => a.exec().mul(b.exec()),
             Node::Div(a, b) => a.exec().div(b.exec()),
-            Node::Ident(ident) => Value::I32(4200),
+            Node::Eq(a, b) => a.exec().eq(b.exec()),
+            Node::Ident(_ident) => Value::I32(4200),
             Node::FuncCall(func, args) => call_func(func, args),
+            Node::If(cond, then, el) => match cond.exec() {
+                Value::Bool(true) => then.exec(),
+                Value::Bool(false) => el.exec(),
+                _ => Value::Err,
+            },
             Node::Error => Value::Err,
         }
     }
@@ -68,18 +79,26 @@ pub fn call_func(func: &Box<Node>, args: &Vec<Node>) -> Value {
 
 pub fn parse_value(lex: &mut Lexer) -> Node {
     match lex.next() {
-        Token::Op('-') => Node::Negative(Box::new(parse_value(lex))),
-        Token::Op('(') => {
+        Token::Sub => Node::Negative(Box::new(parse_value(lex))),
+        Token::OpenP => {
             let expr = parse_expr(lex);
 
-            if lex.next() == Token::Op(')') {
+            if lex.next() == Token::CloseP {
                 expr
             } else {
                 Node::Error
             }
         }
         Token::Value(value) => Node::Value(value),
-        Token::Ident("pi") => Node::Value(Value::F64(std::f64::consts::PI)),
+        Token::Ident("true") => Node::Value(Value::Bool(true)),
+        Token::Ident("false") => Node::Value(Value::Bool(false)),
+        Token::Ident("if") => {
+            let c = Box::new(parse_value(lex));
+            let a = Box::new(parse_value(lex));
+            lex.next(); // else
+            let b = Box::new(parse_value(lex));
+            Node::If(c, a, b)
+        }
         Token::Ident(ident) => Node::Ident(ident.to_string()),
         _ => Node::Error,
     }
@@ -87,7 +106,7 @@ pub fn parse_value(lex: &mut Lexer) -> Node {
 
 fn parse_close_paren(lex: &mut Lexer) -> bool {
     let save = lex.save();
-    if lex.next() == Token::Op(')') {
+    if lex.next() == Token::CloseP {
         return true;
     } else {
         lex.load(save);
@@ -101,13 +120,13 @@ pub fn parse_func_call(lex: &mut Lexer) -> Node {
     let save = lex.save();
 
     match lex.next() {
-        Token::Op('(') => {
+        Token::OpenP => {
             let mut params = vec![];
 
             if !parse_close_paren(lex) {
                 params.push(parse_expr(lex));
 
-                while lex.next() != Token::Op(')') {
+                while lex.next() != Token::CloseP {
                     params.push(parse_expr(lex));
                 }
             }
@@ -127,8 +146,8 @@ pub fn parse_mul(lex: &mut Lexer) -> Node {
     let save = lex.save();
 
     match lex.next() {
-        Token::Op('*') => Node::Mul(Box::new(a), Box::new(parse_mul(lex))),
-        Token::Op('/') => Node::Div(Box::new(a), Box::new(parse_mul(lex))),
+        Token::Mul => Node::Mul(Box::new(a), Box::new(parse_mul(lex))),
+        Token::Div => Node::Div(Box::new(a), Box::new(parse_mul(lex))),
         _ => {
             lex.load(save);
             a
@@ -142,8 +161,22 @@ pub fn parse_add(lex: &mut Lexer) -> Node {
     let save = lex.save();
 
     match lex.next() {
-        Token::Op('+') => Node::Add(Box::new(a), Box::new(parse_add(lex))),
-        Token::Op('-') => Node::Sub(Box::new(a), Box::new(parse_add(lex))),
+        Token::Add => Node::Add(Box::new(a), Box::new(parse_add(lex))),
+        Token::Sub => Node::Sub(Box::new(a), Box::new(parse_add(lex))),
+        _ => {
+            lex.load(save);
+            a
+        }
+    }
+}
+
+pub fn parse_cmp(lex: &mut Lexer) -> Node {
+    let a = parse_add(lex);
+
+    let save = lex.save();
+
+    match lex.next() {
+        Token::Eq => Node::Eq(Box::new(a), Box::new(parse_add(lex))),
         _ => {
             lex.load(save);
             a
@@ -152,7 +185,7 @@ pub fn parse_add(lex: &mut Lexer) -> Node {
 }
 
 pub fn parse_expr(lex: &mut Lexer) -> Node {
-    return parse_add(lex);
+    return parse_cmp(lex);
 }
 
 pub fn exec(src: &str) -> Value {
@@ -165,17 +198,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_if() {
+        assert_eq!(exec("if true 1 else 2"), Value::I32(1));
+        assert_eq!(exec("if (false) 1 else 2"), Value::I32(2));
+    }
+
+    #[test]
+    fn test_bool() {
+        assert_eq!(exec("true"), Value::Bool(true));
+        assert_eq!(exec("false"), Value::Bool(false));
+        assert_eq!(exec("12 == 12"), Value::Bool(true));
+        assert_eq!(exec("12 == 12.0"), Value::Err);
+        assert_eq!(exec("12 == 12 == true"), Value::Bool(true));
+        assert_eq!(exec("8 + 4 == 10 + 2"), Value::Bool(true));
+    }
+
+    #[test]
     fn test_func_call() {
         assert_eq!(exec("add(42)"), Value::I32(42));
         assert_eq!(exec("add(12, 30)"), Value::I32(42));
         assert_eq!(exec("add(12, 10, 20)"), Value::I32(42));
         assert_eq!(exec("sub(50, 8)"), Value::I32(42));
         assert_eq!(exec("sub(50, 4 + 4)"), Value::I32(42));
-    }
-
-    #[test]
-    fn test_build_in_values() {
-        assert_eq!(exec("pi"), Value::F64(std::f64::consts::PI))
     }
 
     #[test]

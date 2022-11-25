@@ -2,10 +2,22 @@ use crate::core::Value;
 
 #[derive(PartialEq)]
 pub enum Token<'a> {
-    Op(char),
     Value(Value),
     Ident(&'a str),
     Err,
+
+    // parans
+    OpenP,
+    CloseP,
+
+    // mathmatical operator
+    Add,
+    Sub,
+    Mul,
+    Div,
+
+    // comparison
+    Eq,
 }
 
 pub fn get_token(src: &str) -> (Token, usize) {
@@ -19,12 +31,13 @@ pub fn get_token(src: &str) -> (Token, usize) {
         step = match step {
             0 /* start */ => {
                 match chr {
-                    '-' => return (Token::Op('-'), 1),
-                    '+' => return (Token::Op('+'), 1),
-                    '*' => return (Token::Op('*'), 1),
-                    '/' => return (Token::Op('/'), 1),
-                    '(' => return (Token::Op('('), 1),
-                    ')' => return (Token::Op(')'), 1),
+                    '-' => return (Token::Sub, 1),
+                    '+' => return (Token::Add, 1),
+                    '*' => return (Token::Mul, 1),
+                    '/' => return (Token::Div, 1),
+                    '(' => return (Token::OpenP, 1),
+                    ')' => return (Token::CloseP, 1),
+                    '=' => 5,
                     '0'..='9' => 1,
                     'a'..='z' | 'A'..='Z' | '_' => 4,
                     '.' => 3,
@@ -53,6 +66,10 @@ pub fn get_token(src: &str) -> (Token, usize) {
             4 /* ident */ => match chr {
                 'a'..='z' | 'A'..='Z' | '_' => 4,
                 _ => return (Token::Ident(&src[..len]), len),
+            },
+            5 /* ident */ => match chr {
+                '=' => return (Token::Eq, 2),
+                _ => return (Token::Err, 2),
             },
             _ => unreachable!()
         };

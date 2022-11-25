@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.0.4
+
+### Added
+
+- Booleans
+- If statments
+
+### Removed
+
+- The constant pi
+
 ## v0.0.3
 
 ### Added

@@ -2,6 +2,7 @@
 pub enum Value {
     I32(i32),
     F64(f64),
+    Bool(bool),
     Err,
 }
 
@@ -10,7 +11,7 @@ impl Value {
         match self {
             Value::I32(num) => Value::I32(-num),
             Value::F64(num) => Value::F64(-num),
-            Value::Err => Value::Err,
+            _ => Value::Err,
         }
     }
 
@@ -42,6 +43,15 @@ impl Value {
         match (self, b) {
             (Value::I32(a), Value::I32(b)) => Value::I32(a / b),
             (Value::F64(a), Value::F64(b)) => Value::F64(a / b),
+            _ => Value::Err,
+        }
+    }
+
+    pub fn eq(&self, b: Value) -> Value {
+        match (self, b) {
+            (Value::I32(a), Value::I32(b)) => Value::Bool(*a == b),
+            (Value::F64(a), Value::F64(b)) => Value::Bool(*a == b),
+            (Value::Bool(a), Value::Bool(b)) => Value::Bool(*a == b),
             _ => Value::Err,
         }
     }
