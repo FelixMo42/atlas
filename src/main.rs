@@ -1,81 +1,18 @@
 mod lexer;
+mod node;
 mod value;
 
 pub mod core {
     pub use super::value::Value;
 }
 
+use std::collections::HashMap;
+
 use crate::core::*;
 use crate::lexer::*;
+use crate::node::Node;
 
 fn main() {}
-
-#[derive(PartialEq)]
-pub enum Node {
-    // base
-    Value(Value),
-    Ident(String),
-    FuncCall(Box<Node>, Vec<Node>),
-    Error,
-
-    // unary operator
-    Negative(Box<Node>),
-
-    // operators
-    Add(Box<Node>, Box<Node>),
-    Sub(Box<Node>, Box<Node>),
-    Mul(Box<Node>, Box<Node>),
-    Div(Box<Node>, Box<Node>),
-    Eq(Box<Node>, Box<Node>),
-
-    // flow
-    If(Box<Node>, Box<Node>, Box<Node>),
-}
-
-impl Node {
-    fn exec(&self) -> Value {
-        match self {
-            Node::Value(value) => *value,
-            Node::Negative(node) => node.exec().neg(),
-            Node::Add(a, b) => a.exec().add(b.exec()),
-            Node::Sub(a, b) => a.exec().sub(b.exec()),
-            Node::Mul(a, b) => a.exec().mul(b.exec()),
-            Node::Div(a, b) => a.exec().div(b.exec()),
-            Node::Eq(a, b) => a.exec().eq(b.exec()),
-            Node::Ident(_ident) => Value::I32(4200),
-            Node::FuncCall(func, args) => call_func(func, args),
-            Node::If(cond, then, el) => match cond.exec() {
-                Value::Bool(true) => then.exec(),
-                Value::Bool(false) => el.exec(),
-                _ => Value::Err,
-            },
-            Node::Error => Value::Err,
-        }
-    }
-}
-
-pub fn call_func(func: &Box<Node>, args: &Vec<Node>) -> Value {
-    match func.as_ref() {
-        Node::Ident(ident) => match ident.as_str() {
-            "add" => {
-                let mut v = args[0].exec();
-                for arg in &args[1..] {
-                    v = v.add(arg.exec())
-                }
-                v
-            }
-            "sub" => {
-                let mut v = args[0].exec();
-                for arg in &args[1..] {
-                    v = v.sub(arg.exec())
-                }
-                v
-            }
-            _ => Value::Err,
-        },
-        _ => Value::Err,
-    }
-}
 
 pub fn parse_value(lex: &mut Lexer) -> Node {
     match lex.next() {
@@ -89,9 +26,10 @@ pub fn parse_value(lex: &mut Lexer) -> Node {
                 Node::Error
             }
         }
-        Token::Value(value) => Node::Value(value),
-        Token::Ident("true") => Node::Value(Value::Bool(true)),
-        Token::Ident("false") => Node::Value(Value::Bool(false)),
+        Token::I32(value) => Node::I32(value),
+        Token::F64(value) => Node::F64(value),
+        Token::Ident("true") => Node::Bool(true),
+        Token::Ident("false") => Node::Bool(false),
         Token::Ident("if") => {
             let c = Box::new(parse_value(lex));
             let a = Box::new(parse_value(lex));
@@ -188,9 +126,59 @@ pub fn parse_expr(lex: &mut Lexer) -> Node {
     return parse_cmp(lex);
 }
 
-pub fn exec(src: &str) -> Value {
+/// evaluate an expression and returns the the value
+pub fn eval(src: &str) -> Value {
     let lex = &mut Lexer::new(src);
-    return parse_expr(lex).exec();
+    return parse_expr(lex).eval();
+}
+
+#[derive(Default)]
+pub struct Scope {
+    vars: HashMap<String, Value>,
+}
+
+pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Node)> {
+    if lex.next() != Token::Ident("fn") {
+        return None;
+    };
+
+    let name = if let Token::Ident(name) = lex.next() {
+        name.to_string()
+    } else {
+        return None;
+    };
+
+    lex.next(); // (
+    lex.next(); // (
+    lex.next(); // {
+    lex.next(); // return
+
+    let body = parse_expr(lex);
+
+    lex.next(); // }
+
+    return Some((name.to_string(), body));
+}
+
+pub fn parse_file(lex: &mut Lexer) -> Scope {
+    let mut scope = Scope::default();
+
+    while let Some((name, node)) = parse_func_def(lex) {
+        scope.vars.insert(name, Value::Func(node));
+    }
+
+    return scope;
+}
+
+/// run the main function from source code and returns the result
+pub fn exec(src: &str) -> Value {
+    let scope = parse_file(&mut Lexer::new(src));
+
+    if let Some(Value::Func(root_node)) = scope.vars.get("main") {
+        return root_node.eval();
+    } else {
+        return Value::Err;
+    }
 }
 
 #[cfg(test)]
@@ -198,72 +186,101 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_func_def() {
+        assert_eq!(
+            exec(
+                "
+                    fn main() {
+                        return 40 + 2
+                    }
+                "
+            ),
+            Value::I32(42)
+        );
+
+        assert_eq!(
+            exec(
+                "
+                    fn forty() {
+                        return 20 * 2
+                    }
+
+                    fn main() {
+                        return 42 
+                    }
+                "
+            ),
+            Value::I32(42)
+        );
+    }
+
+    #[test]
     fn test_if() {
-        assert_eq!(exec("if true 1 else 2"), Value::I32(1));
-        assert_eq!(exec("if (false) 1 else 2"), Value::I32(2));
+        assert_eq!(eval("if true 1 else 2"), Value::I32(1));
+        assert_eq!(eval("if (false) 1 else 2"), Value::I32(2));
     }
 
     #[test]
     fn test_bool() {
-        assert_eq!(exec("true"), Value::Bool(true));
-        assert_eq!(exec("false"), Value::Bool(false));
-        assert_eq!(exec("12 == 12"), Value::Bool(true));
-        assert_eq!(exec("12 == 12.0"), Value::Err);
-        assert_eq!(exec("12 == 12 == true"), Value::Bool(true));
-        assert_eq!(exec("8 + 4 == 10 + 2"), Value::Bool(true));
+        assert_eq!(eval("true"), Value::Bool(true));
+        assert_eq!(eval("false"), Value::Bool(false));
+        assert_eq!(eval("12 == 12"), Value::Bool(true));
+        assert_eq!(eval("12 == 12.0"), Value::Err);
+        assert_eq!(eval("12 == 12 == true"), Value::Bool(true));
+        assert_eq!(eval("8 + 4 == 10 + 2"), Value::Bool(true));
     }
 
     #[test]
     fn test_func_call() {
-        assert_eq!(exec("add(42)"), Value::I32(42));
-        assert_eq!(exec("add(12, 30)"), Value::I32(42));
-        assert_eq!(exec("add(12, 10, 20)"), Value::I32(42));
-        assert_eq!(exec("sub(50, 8)"), Value::I32(42));
-        assert_eq!(exec("sub(50, 4 + 4)"), Value::I32(42));
+        assert_eq!(eval("add(42)"), Value::I32(42));
+        assert_eq!(eval("add(12, 30)"), Value::I32(42));
+        assert_eq!(eval("add(12, 10, 20)"), Value::I32(42));
+        assert_eq!(eval("sub(50, 8)"), Value::I32(42));
+        assert_eq!(eval("sub(50, 4 + 4)"), Value::I32(42));
     }
 
     #[test]
     fn test_num() {
-        assert_eq!(exec("0"), Value::I32(0));
-        assert_eq!(exec("1"), Value::I32(1));
-        assert_eq!(exec("42"), Value::I32(42));
-        assert_eq!(exec("42.0"), Value::F64(42.0));
-        assert_eq!(exec("42.2"), Value::F64(42.2));
+        assert_eq!(eval("0"), Value::I32(0));
+        assert_eq!(eval("1"), Value::I32(1));
+        assert_eq!(eval("42"), Value::I32(42));
+        assert_eq!(eval("42.0"), Value::F64(42.0));
+        assert_eq!(eval("42.2"), Value::F64(42.2));
     }
 
     #[test]
     fn test_num_negative() {
-        assert_eq!(exec("-42"), Value::I32(-42));
-        assert_eq!(exec("-42.2"), Value::F64(-42.2));
+        assert_eq!(eval("-42"), Value::I32(-42));
+        assert_eq!(eval("-42.2"), Value::F64(-42.2));
     }
 
     #[test]
     fn test_op() {
-        assert_eq!(exec("1+1"), Value::I32(2));
-        assert_eq!(exec("1 + 1"), Value::I32(2));
-        assert_eq!(exec("40 + 2"), Value::I32(42));
-        assert_eq!(exec("38.2 + 3.8"), Value::F64(42.0));
-        assert_eq!(exec("38 + 3.8"), Value::Err);
+        assert_eq!(eval("1+1"), Value::I32(2));
+        assert_eq!(eval("1 + 1"), Value::I32(2));
+        assert_eq!(eval("40 + 2"), Value::I32(42));
+        assert_eq!(eval("38.2 + 3.8"), Value::F64(42.0));
+        assert_eq!(eval("38 + 3.8"), Value::Err);
 
-        assert_eq!(exec("40 * 2"), Value::I32(80));
-        assert_eq!(exec("40 / 2"), Value::I32(20));
-        assert_eq!(exec("40 - 2"), Value::I32(38));
-        assert_eq!(exec("2 - 40"), Value::I32(-38));
-        assert_eq!(exec("2 + -40"), Value::I32(-38));
+        assert_eq!(eval("40 * 2"), Value::I32(80));
+        assert_eq!(eval("40 / 2"), Value::I32(20));
+        assert_eq!(eval("40 - 2"), Value::I32(38));
+        assert_eq!(eval("2 - 40"), Value::I32(-38));
+        assert_eq!(eval("2 + -40"), Value::I32(-38));
 
-        assert_eq!(exec("80 + 40 - 78"), Value::I32(42));
-        assert_eq!(exec("2 + 20 * 2"), Value::I32(42));
-        assert_eq!(exec("20 * 2 + 2"), Value::I32(42));
-        assert_eq!(exec("1 + 20 * 2 + 1"), Value::I32(42));
-        assert_eq!(exec("20 * 2 + 20 / 2"), Value::I32(50));
+        assert_eq!(eval("80 + 40 - 78"), Value::I32(42));
+        assert_eq!(eval("2 + 20 * 2"), Value::I32(42));
+        assert_eq!(eval("20 * 2 + 2"), Value::I32(42));
+        assert_eq!(eval("1 + 20 * 2 + 1"), Value::I32(42));
+        assert_eq!(eval("20 * 2 + 20 / 2"), Value::I32(50));
     }
 
     #[test]
     fn test_paren() {
-        assert_eq!(exec("(42)"), Value::I32(42));
-        assert_eq!(exec("(40) + 2"), Value::I32(42));
-        assert_eq!(exec("(40 + 2)"), Value::I32(42));
-        assert_eq!(exec("40 + (2)"), Value::I32(42));
-        assert_eq!(exec("(((40)) + (2))"), Value::I32(42));
+        assert_eq!(eval("(42)"), Value::I32(42));
+        assert_eq!(eval("(40) + 2"), Value::I32(42));
+        assert_eq!(eval("(40 + 2)"), Value::I32(42));
+        assert_eq!(eval("40 + (2)"), Value::I32(42));
+        assert_eq!(eval("(((40)) + (2))"), Value::I32(42));
     }
 }

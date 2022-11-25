@@ -1,8 +1,11 @@
-#[derive(Debug, PartialEq, Clone, Copy)]
+use crate::node::Node;
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     I32(i32),
     F64(f64),
     Bool(bool),
+    Func(Node),
     Err,
 }
 

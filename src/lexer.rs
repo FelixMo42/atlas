@@ -1,10 +1,11 @@
-use crate::core::Value;
-
 #[derive(PartialEq)]
 pub enum Token<'a> {
-    Value(Value),
     Ident(&'a str),
     Err,
+
+    // literals
+    I32(i32),
+    F64(f64),
 
     // parans
     OpenP,
@@ -47,17 +48,17 @@ pub fn get_token(src: &str) -> (Token, usize) {
             1 /* number */ => match chr {
                 '0'..='9' => 1,
                 '.' => 2,
-                _ => return (Token::Value(Value::I32(src[..len]
+                _ => return (Token::I32(src[..len]
                     .parse()
                     .expect("unexpecter error parsing int token")
-                )), len)
+                ), len)
             },
             2 /* float */ => match chr {
                 '0'..='9' => 2,
-                _ => return (Token::Value(Value::F64(src[..len]
+                _ => return (Token::F64(src[..len]
                     .parse()
                     .expect("unexpected error parsing float token")
-                )), len),
+                ), len),
             },
             3 /* dot or float */ => match chr {
                 '0'..='9' => 3,

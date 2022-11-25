@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.0.5
+
+### Added
+
+- Function definitions
+
 ## v0.0.4
 
 ### Added
