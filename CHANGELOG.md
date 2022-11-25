@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.6
+
+### Added
+
+- Call functions you defined
+
+### Removed
+
+- Add and Sub built in functions
+
 ## v0.0.5
 
 ### Added

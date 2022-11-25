@@ -6,11 +6,10 @@ pub mod core {
     pub use super::value::Value;
 }
 
-use std::collections::HashMap;
-
 use crate::core::*;
 use crate::lexer::*;
 use crate::node::Node;
+use crate::value::Scope;
 
 fn main() {}
 
@@ -129,12 +128,7 @@ pub fn parse_expr(lex: &mut Lexer) -> Node {
 /// evaluate an expression and returns the the value
 pub fn eval(src: &str) -> Value {
     let lex = &mut Lexer::new(src);
-    return parse_expr(lex).eval();
-}
-
-#[derive(Default)]
-pub struct Scope {
-    vars: HashMap<String, Value>,
+    return parse_expr(lex).eval(&Scope::default());
 }
 
 pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Node)> {
@@ -164,21 +158,20 @@ pub fn parse_file(lex: &mut Lexer) -> Scope {
     let mut scope = Scope::default();
 
     while let Some((name, node)) = parse_func_def(lex) {
-        scope.vars.insert(name, Value::Func(node));
+        scope.set(name, Value::Func(node));
     }
 
     return scope;
 }
 
+fn eval_with_scope(src: &str, scope: &Scope) -> Value {
+    parse_expr(&mut Lexer::new(src)).eval(scope)
+}
+
 /// run the main function from source code and returns the result
 pub fn exec(src: &str) -> Value {
     let scope = parse_file(&mut Lexer::new(src));
-
-    if let Some(Value::Func(root_node)) = scope.vars.get("main") {
-        return root_node.eval();
-    } else {
-        return Value::Err;
-    }
+    return eval_with_scope("main()", &scope);
 }
 
 #[cfg(test)]
@@ -206,7 +199,7 @@ mod tests {
                     }
 
                     fn main() {
-                        return 42 
+                        return forty() + 2
                     }
                 "
             ),
@@ -228,15 +221,6 @@ mod tests {
         assert_eq!(eval("12 == 12.0"), Value::Err);
         assert_eq!(eval("12 == 12 == true"), Value::Bool(true));
         assert_eq!(eval("8 + 4 == 10 + 2"), Value::Bool(true));
-    }
-
-    #[test]
-    fn test_func_call() {
-        assert_eq!(eval("add(42)"), Value::I32(42));
-        assert_eq!(eval("add(12, 30)"), Value::I32(42));
-        assert_eq!(eval("add(12, 10, 20)"), Value::I32(42));
-        assert_eq!(eval("sub(50, 8)"), Value::I32(42));
-        assert_eq!(eval("sub(50, 4 + 4)"), Value::I32(42));
     }
 
     #[test]
