@@ -6,10 +6,9 @@ pub mod core {
     pub use super::value::Value;
 }
 
-use crate::core::*;
 use crate::lexer::*;
-use crate::node::Node;
-use crate::value::Scope;
+use crate::node::*;
+use crate::value::*;
 
 fn main() {}
 
@@ -30,10 +29,10 @@ pub fn parse_value(lex: &mut Lexer) -> Node {
         Token::Ident("true") => Node::Bool(true),
         Token::Ident("false") => Node::Bool(false),
         Token::Ident("if") => {
-            let c = Box::new(parse_value(lex));
-            let a = Box::new(parse_value(lex));
+            let c = Box::new(parse_expr(lex));
+            let a = Box::new(parse_expr(lex));
             lex.next(); // else
-            let b = Box::new(parse_value(lex));
+            let b = Box::new(parse_expr(lex));
             Node::If(c, a, b)
         }
         Token::Ident(ident) => Node::Ident(ident.to_string()),
@@ -131,7 +130,27 @@ pub fn eval(src: &str) -> Value {
     return parse_expr(lex).eval(&Scope::default());
 }
 
-pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Node)> {
+pub fn parse_statement(lex: &mut Lexer) -> Option<Statement> {
+    match lex.next() {
+        Token::Ident("let") => {
+            let name = if let Token::Ident(name) = lex.next() {
+                name.to_string()
+            } else {
+                return None;
+            };
+
+            lex.next(); // =
+
+            let value = parse_expr(lex);
+
+            Some(Statement::Assign(name, value))
+        }
+        Token::Ident("return") => Some(Statement::Return(parse_expr(lex))),
+        _ => None,
+    }
+}
+
+pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Func)> {
     if lex.next() != Token::Ident("fn") {
         return None;
     };
@@ -143,40 +162,93 @@ pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Node)> {
     };
 
     lex.next(); // (
-    lex.next(); // (
-    lex.next(); // {
-    lex.next(); // return
 
-    let body = parse_expr(lex);
+    let mut params = vec![];
+    if !parse_close_paren(lex) {
+        loop {
+            if let Token::Ident(name) = lex.next() {
+                println!(">> {}", name);
+                params.push(name.to_string());
+            } else {
+                println!("!!!");
+                return None;
+            }
 
-    lex.next(); // }
-
-    return Some((name.to_string(), body));
-}
-
-pub fn parse_file(lex: &mut Lexer) -> Scope {
-    let mut scope = Scope::default();
-
-    while let Some((name, node)) = parse_func_def(lex) {
-        scope.set(name, Value::Func(node));
+            if lex.next() == Token::CloseP {
+                break;
+            }
+        }
     }
 
-    return scope;
-}
+    lex.next(); // {
 
-fn eval_with_scope(src: &str, scope: &Scope) -> Value {
-    parse_expr(&mut Lexer::new(src)).eval(scope)
+    let mut body = vec![];
+    while let Some(statement) = parse_statement(lex) {
+        body.push(statement);
+    }
+
+    return Some((name.to_string(), Func { params, body }));
 }
 
 /// run the main function from source code and returns the result
 pub fn exec(src: &str) -> Value {
-    let scope = parse_file(&mut Lexer::new(src));
-    return eval_with_scope("main()", &scope);
+    let mut scope = Scope::default();
+
+    let lex = &mut Lexer::new(src);
+    while let Some((name, func)) = parse_func_def(lex) {
+        scope.set(name, Value::Func(func));
+    }
+
+    return parse_expr(&mut Lexer::new("main()")).eval(&scope);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_variables() {
+        assert_eq!(
+            exec(
+                "
+                    fn bla() {
+                        return x
+                    }
+
+                    fn main() {
+                        let x = 5
+                        return bla()
+                    }
+                "
+            ),
+            Value::Err
+        );
+
+        assert_eq!(
+            exec(
+                "
+                    fn main() {
+                        let x = 5
+                        return 40 + x
+                    }
+                "
+            ),
+            Value::I32(45)
+        );
+
+        assert_eq!(
+            exec(
+                "
+                    fn main() {
+                        let x = 5
+                        let x = x + 10
+                        return x
+                    }
+                "
+            ),
+            Value::I32(15)
+        );
+    }
 
     #[test]
     fn test_func_def() {
@@ -205,12 +277,31 @@ mod tests {
             ),
             Value::I32(42)
         );
+
+        assert_eq!(
+            exec(
+                "
+                    fn fib(num) {
+                        return
+                            if (num == 1) 1
+                            else if (num == 0) 0
+                            else fib(num - 1) + fib(num - 2)
+                    }
+
+                    fn main() {
+                        return fib(7)
+                    }
+                "
+            ),
+            Value::I32(13)
+        );
     }
 
     #[test]
     fn test_if() {
         assert_eq!(eval("if true 1 else 2"), Value::I32(1));
         assert_eq!(eval("if (false) 1 else 2"), Value::I32(2));
+        assert_eq!(eval("if (false) 1 else if (false) 2 else 3"), Value::I32(3));
     }
 
     #[test]

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.0
+
+## Added
+
+- Function paramaters!
+- Variables
+
+## Fixed
+
+- Allows expression in if statments
+
 ## v0.0.6
 
 ### Added

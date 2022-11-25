@@ -1,5 +1,5 @@
 use crate::core::Value;
-use crate::value::Scope;
+use crate::value::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
@@ -53,8 +53,28 @@ impl Node {
 
 pub fn call_func(func: &Box<Node>, args: &Vec<Node>, scope: &Scope) -> Value {
     if let Value::Func(func) = func.eval(scope) {
-        func.eval(scope)
+        if func.params.len() != args.len() {
+            return Value::Err;
+        }
+
+        let mut function_scope = scope.root();
+
+        for i in 0..args.len() {
+            function_scope.set(func.params[i].clone(), args[i].eval(&scope));
+            println!("{} = {:?}", func.params[i], args[i].eval(&scope));
+        }
+
+        for statement in func.body {
+            match statement {
+                Statement::Assign(name, value) => {
+                    function_scope.set(name, value.eval(&function_scope))
+                }
+                Statement::Return(value) => return value.eval(&function_scope),
+            }
+        }
+
+        return Value::Unit;
     } else {
-        Value::Err
+        return Value::Err;
     }
 }
