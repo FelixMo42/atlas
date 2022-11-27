@@ -1,9 +1,42 @@
-use crate::ast::*;
+use crate::parser::*;
 use crate::value::*;
+
+use std::collections::HashMap;
 
 type Reg = usize;
 type FuncId = usize;
 type Block = usize;
+
+#[derive(Default)]
+pub struct Scope<'a> {
+    vars: HashMap<String, usize>,
+    parent: Option<&'a Scope<'a>>,
+}
+
+impl<'a> Scope<'a> {
+    pub fn get(&self, name: &str) -> Option<usize> {
+        if let Some(value) = self.vars.get(name) {
+            return Some(value.clone());
+        } else if let Some(parent) = self.parent {
+            return parent.get(name);
+        } else {
+            return None;
+        }
+    }
+
+    pub fn set(&mut self, name: String, value: usize) {
+        self.vars.insert(name, value);
+    }
+}
+
+impl<'a> Scope<'a> {
+    pub fn child(&self) -> Scope {
+        return Scope {
+            vars: HashMap::new(),
+            parent: Some(self),
+        };
+    }
+}
 
 #[derive(Debug)]
 pub struct Func {
@@ -79,18 +112,35 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Value) -> Value {
     }
 }
 
+pub fn func_to_ir(ast: &Ast, scope: &Scope) -> Vec<BlockData> {
+    let mut builder = IrBuilder {
+        blocks: vec![BlockData::JumpTo(1)],
+        map: scope.child(),
+    };
+
+    builder.add(ast);
+
+    return builder.blocks;
+}
+
+pub fn expr_to_ir(ast: Ast) -> Vec<BlockData> {
+    let mut builder = IrBuilder {
+        blocks: vec![],
+        map: Scope::default(),
+    };
+
+    let reg = builder.add(&ast);
+    builder.blocks.push(BlockData::Return(reg));
+
+    return builder.blocks;
+}
+
 struct IrBuilder<'a> {
     blocks: Vec<BlockData>,
     map: Scope<'a>,
 }
 
 impl<'a> IrBuilder<'a> {
-    fn add_placeholder(&mut self) -> usize {
-        let location = self.blocks.len();
-        self.blocks.push(BlockData::JumpTo(usize::MAX));
-        return location;
-    }
-
     fn add_inst(&mut self, inst: Inst) -> usize {
         let block = self.next_block();
         self.blocks.push(BlockData::Assign(block, inst));
@@ -103,6 +153,12 @@ impl<'a> IrBuilder<'a> {
         return block;
     }
 
+    fn add_placeholder(&mut self) -> usize {
+        let location = self.blocks.len();
+        self.blocks.push(BlockData::JumpTo(usize::MAX));
+        return location;
+    }
+
     fn fill_placeholder(&mut self, placeholder: usize, block: BlockData) {
         self.blocks[placeholder] = block;
     }
@@ -110,43 +166,7 @@ impl<'a> IrBuilder<'a> {
     fn next_block(&self) -> usize {
         return self.blocks.len();
     }
-}
 
-pub fn func_to_ir(func: Vec<Statement>, scope: &Scope) -> Vec<BlockData> {
-    let mut builder = IrBuilder {
-        blocks: vec![BlockData::JumpTo(1)],
-        map: scope.child(),
-    };
-
-    for statment in func {
-        match statment {
-            Statement::Assign(name, node) => {
-                let reg = builder.add(&node);
-                builder.map.set(name.clone(), reg);
-            }
-            Statement::Return(node) => {
-                let reg = builder.add(&node);
-                builder.blocks.push(BlockData::Return(reg));
-            }
-        }
-    }
-
-    return builder.blocks;
-}
-
-pub fn ast_to_ir(ast: Ast) -> Vec<BlockData> {
-    let mut builder = IrBuilder {
-        blocks: vec![],
-        map: Scope::default(),
-    };
-
-    let reg = builder.add(&ast);
-    builder.blocks.push(BlockData::Return(reg));
-
-    return builder.blocks;
-}
-
-impl<'a> IrBuilder<'a> {
     fn add(&mut self, ast: &Ast) -> usize {
         match ast {
             Ast::I32(num) => self.add_consts(Value::I32(*num)),
@@ -187,11 +207,9 @@ impl<'a> IrBuilder<'a> {
                 let branch = self.add_placeholder();
 
                 let b = self.add(b);
-
                 let jump = self.add_placeholder();
 
                 let branch_target = self.next_block();
-
                 let a = self.add(a);
                 self.blocks.push(BlockData::Assign(b, Inst::Move(a)));
 
@@ -210,7 +228,23 @@ impl<'a> IrBuilder<'a> {
                 };
                 self.add_inst(Inst::Call(func, args))
             }
-            _ => unimplemented!(),
+            Ast::Block(nodes) => {
+                for node in nodes {
+                    self.add(node);
+                }
+                0
+            }
+            Ast::Assign(name, node) => {
+                let reg = self.add(&node);
+                self.map.set(name.clone(), reg);
+                0
+            }
+            Ast::Return(node) => {
+                let reg = self.add(&node);
+                self.blocks.push(BlockData::Return(reg));
+                0
+            }
+            Ast::Error => self.add_consts(Value::Err),
         }
     }
 }

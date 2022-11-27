@@ -1,19 +1,25 @@
 # Changelog
 
+## v0.1.2
+
+### Added
+
+- Return from inside if statment
+
 ## v0.1.1
 
-## Removed
+### Removed
 
 - Having more than one paramater
 
 ## v0.1.0
 
-## Added
+### Added
 
 - Function paramaters!
 - Variables
 
-## Fixed
+### Fixed
 
 - Allows expression in if statments
 

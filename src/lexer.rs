@@ -123,8 +123,4 @@ impl<'a> Lexer<'a> {
     pub fn load(&mut self, index: usize) {
         self.index = index
     }
-
-    pub fn log(&self) {
-        println!("{}~{}", &self.src[..self.index], &self.src[self.index..]);
-    }
 }

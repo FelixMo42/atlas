@@ -1,133 +1,14 @@
-mod ast;
 mod ir;
 mod lexer;
+mod parser;
 mod value;
 
-use crate::ast::*;
 use crate::ir::*;
 use crate::lexer::*;
+use crate::parser::*;
 use crate::value::*;
 
 fn main() {}
-
-pub fn parse_value(lex: &mut Lexer) -> Ast {
-    match lex.next() {
-        Token::Sub => Ast::Negative(Box::new(parse_value(lex))),
-        Token::OpenP => {
-            let expr = parse_expr(lex);
-
-            if lex.next() == Token::CloseP {
-                expr
-            } else {
-                Ast::Error
-            }
-        }
-        Token::I32(value) => Ast::I32(value),
-        Token::F64(value) => Ast::F64(value),
-        Token::Ident("true") => Ast::Bool(true),
-        Token::Ident("false") => Ast::Bool(false),
-        Token::Ident("if") => {
-            let c = Box::new(parse_expr(lex));
-            let a = Box::new(parse_expr(lex));
-            lex.next(); // else
-            let b = Box::new(parse_expr(lex));
-            Ast::If(c, a, b)
-        }
-        Token::Ident(ident) => Ast::Ident(ident.to_string()),
-        Token::OpenB => {
-            let mut statements = vec![];
-            while let Some(statement) = parse_statement(lex) {
-                statements.push(statement);
-            }
-            Ast::Block(statements)
-        }
-        _ => Ast::Error,
-    }
-}
-
-pub fn parse_close_paren(lex: &mut Lexer) -> bool {
-    let save = lex.save();
-    if lex.next() == Token::CloseP {
-        return true;
-    } else {
-        lex.load(save);
-        return false;
-    }
-}
-
-pub fn parse_func_call(lex: &mut Lexer) -> Ast {
-    let value = parse_value(lex);
-
-    let save = lex.save();
-
-    match lex.next() {
-        Token::OpenP => {
-            let mut params = vec![];
-
-            if !parse_close_paren(lex) {
-                params.push(parse_expr(lex));
-
-                while lex.next() != Token::CloseP {
-                    params.push(parse_expr(lex));
-                }
-            }
-
-            Ast::FuncCall(Box::new(value), params)
-        }
-        _ => {
-            lex.load(save);
-            value
-        }
-    }
-}
-
-pub fn parse_mul(lex: &mut Lexer) -> Ast {
-    let a = parse_func_call(lex);
-
-    let save = lex.save();
-
-    match lex.next() {
-        Token::Mul => Ast::Mul(Box::new(a), Box::new(parse_mul(lex))),
-        Token::Div => Ast::Div(Box::new(a), Box::new(parse_mul(lex))),
-        _ => {
-            lex.load(save);
-            a
-        }
-    }
-}
-
-pub fn parse_add(lex: &mut Lexer) -> Ast {
-    let a = parse_mul(lex);
-
-    let save = lex.save();
-
-    match lex.next() {
-        Token::Add => Ast::Add(Box::new(a), Box::new(parse_add(lex))),
-        Token::Sub => Ast::Sub(Box::new(a), Box::new(parse_add(lex))),
-        _ => {
-            lex.load(save);
-            a
-        }
-    }
-}
-
-pub fn parse_cmp(lex: &mut Lexer) -> Ast {
-    let a = parse_add(lex);
-
-    let save = lex.save();
-
-    match lex.next() {
-        Token::Eq => Ast::Eq(Box::new(a), Box::new(parse_add(lex))),
-        _ => {
-            lex.load(save);
-            a
-        }
-    }
-}
-
-pub fn parse_expr(lex: &mut Lexer) -> Ast {
-    return parse_cmp(lex);
-}
 
 /// evaluate an expression and returns the the value
 pub fn eval(src: &str) -> Value {
@@ -135,7 +16,7 @@ pub fn eval(src: &str) -> Value {
     let ast = parse_expr(lex);
     let val = exec_ir(
         &Func {
-            body: ast_to_ir(ast),
+            body: expr_to_ir(ast),
             params: vec![],
         },
         &vec![],
@@ -143,64 +24,6 @@ pub fn eval(src: &str) -> Value {
     );
 
     return val;
-}
-
-pub fn parse_statement(lex: &mut Lexer) -> Option<Statement> {
-    match lex.next() {
-        Token::Ident("let") => {
-            let name = if let Token::Ident(name) = lex.next() {
-                name.to_string()
-            } else {
-                return None;
-            };
-
-            lex.next(); // =
-
-            let value = parse_expr(lex);
-
-            Some(Statement::Assign(name, value))
-        }
-        Token::Ident("return") => Some(Statement::Return(parse_expr(lex))),
-        _ => None,
-    }
-}
-
-pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Vec<Statement>)> {
-    if lex.next() != Token::Ident("fn") {
-        return None;
-    };
-
-    let name = if let Token::Ident(name) = lex.next() {
-        name.to_string()
-    } else {
-        return None;
-    };
-
-    lex.next(); // (
-
-    let mut params = vec![];
-    if !parse_close_paren(lex) {
-        loop {
-            if let Token::Ident(name) = lex.next() {
-                params.push(name.to_string());
-            } else {
-                return None;
-            }
-
-            if lex.next() == Token::CloseP {
-                break;
-            }
-        }
-    }
-
-    lex.next(); // {
-
-    let mut body = vec![];
-    while let Some(statement) = parse_statement(lex) {
-        body.push(statement);
-    }
-
-    return Some((name.to_string(), params, body));
 }
 
 /// run the main function from source code and returns the result
@@ -222,7 +45,7 @@ pub fn exec(src: &str) -> Value {
     let funcs: Vec<Func> = funcs
         .into_iter()
         .map(|(_name, params, body)| Func {
-            body: func_to_ir(body, &scope),
+            body: func_to_ir(&body, &scope),
             params,
         })
         .collect();

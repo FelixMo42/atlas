@@ -1,13 +1,3 @@
-use crate::ast::Ast;
-
-use std::collections::HashMap;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Statement {
-    Assign(String, Ast),
-    Return(Ast),
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     I32(i32),
@@ -74,36 +64,5 @@ impl Value {
             Value::Bool(bool) => *bool,
             _ => panic!("expected boolean, got not that"),
         }
-    }
-}
-
-#[derive(Default)]
-pub struct Scope<'a> {
-    vars: HashMap<String, usize>,
-    parent: Option<&'a Scope<'a>>,
-}
-
-impl<'a> Scope<'a> {
-    pub fn get(&self, name: &str) -> Option<usize> {
-        if let Some(value) = self.vars.get(name) {
-            return Some(value.clone());
-        } else if let Some(parent) = self.parent {
-            return parent.get(name);
-        } else {
-            return None;
-        }
-    }
-
-    pub fn set(&mut self, name: String, value: usize) {
-        self.vars.insert(name, value);
-    }
-}
-
-impl<'a> Scope<'a> {
-    pub fn child(&self) -> Scope {
-        return Scope {
-            vars: HashMap::new(),
-            parent: Some(self),
-        };
     }
 }
