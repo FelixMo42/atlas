@@ -1,17 +1,11 @@
-use crate::node::Node;
+use crate::ast::Ast;
 
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
-    Assign(String, Node),
-    Return(Node),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct Func {
-    pub params: Vec<String>,
-    pub body: Vec<Statement>,
+    Assign(String, Ast),
+    Return(Ast),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -19,7 +13,6 @@ pub enum Value {
     I32(i32),
     F64(f64),
     Bool(bool),
-    Func(Func),
     Unit,
     Err,
 }
@@ -75,44 +68,38 @@ impl Value {
     }
 }
 
+impl Value {
+    pub fn as_bool(&self) -> bool {
+        match self {
+            Value::Bool(bool) => *bool,
+            _ => panic!("expected boolean, got not that"),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Scope<'a> {
-    vars: HashMap<String, Value>,
+    vars: HashMap<String, usize>,
     parent: Option<&'a Scope<'a>>,
 }
 
 impl<'a> Scope<'a> {
-    pub fn get(&self, name: &str) -> Value {
+    pub fn get(&self, name: &str) -> Option<usize> {
         if let Some(value) = self.vars.get(name) {
-            return value.clone();
+            return Some(value.clone());
         } else if let Some(parent) = self.parent {
             return parent.get(name);
         } else {
-            return Value::Err;
+            return None;
         }
     }
 
-    pub fn set(&mut self, name: String, value: Value) {
+    pub fn set(&mut self, name: String, value: usize) {
         self.vars.insert(name, value);
     }
 }
 
 impl<'a> Scope<'a> {
-    pub fn root(&self) -> Scope {
-        if let Some(mut parent) = self.parent {
-            while let Some(p) = parent.parent {
-                parent = p
-            }
-
-            return Scope {
-                vars: HashMap::new(),
-                parent: Some(parent),
-            };
-        } else {
-            return self.child();
-        }
-    }
-
     pub fn child(&self) -> Scope {
         return Scope {
             vars: HashMap::new(),

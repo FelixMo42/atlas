@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.1
+
+## Removed
+
+- Having more than one paramater
+
 ## v0.1.0
 
 ## Added

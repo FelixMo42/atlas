@@ -10,6 +10,8 @@ pub enum Token<'a> {
     // parans
     OpenP,
     CloseP,
+    OpenB,
+    CloseB,
 
     // mathmatical operator
     Add,
@@ -38,6 +40,8 @@ pub fn get_token(src: &str) -> (Token, usize) {
                     '/' => return (Token::Div, 1),
                     '(' => return (Token::OpenP, 1),
                     ')' => return (Token::CloseP, 1),
+                    '{' => return (Token::OpenB, 1),
+                    '}' => return (Token::CloseB, 1),
                     '=' => 5,
                     '0'..='9' => 1,
                     'a'..='z' | 'A'..='Z' | '_' => 4,
