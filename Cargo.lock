@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "gethen"
+name = "atlas"
 version = "0.1.1"
