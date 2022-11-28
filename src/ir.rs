@@ -115,32 +115,29 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Value) -> Value {
 pub fn func_to_ir(ast: &Ast, scope: &Scope) -> Vec<BlockData> {
     let mut builder = IrBuilder {
         blocks: vec![BlockData::JumpTo(1)],
-        map: scope.child(),
     };
 
-    builder.add(ast);
+    let scope = &mut scope.child();
+
+    builder.add(ast, scope);
 
     return builder.blocks;
 }
 
 pub fn expr_to_ir(ast: Ast) -> Vec<BlockData> {
-    let mut builder = IrBuilder {
-        blocks: vec![],
-        map: Scope::default(),
-    };
+    let mut builder = IrBuilder { blocks: vec![] };
 
-    let reg = builder.add(&ast);
+    let reg = builder.add(&ast, &mut Scope::default());
     builder.blocks.push(BlockData::Return(reg));
 
     return builder.blocks;
 }
 
-struct IrBuilder<'a> {
+struct IrBuilder {
     blocks: Vec<BlockData>,
-    map: Scope<'a>,
 }
 
-impl<'a> IrBuilder<'a> {
+impl IrBuilder {
     fn add_inst(&mut self, inst: Inst) -> usize {
         let block = self.next_block();
         self.blocks.push(BlockData::Assign(block, inst));
@@ -167,50 +164,50 @@ impl<'a> IrBuilder<'a> {
         return self.blocks.len();
     }
 
-    fn add(&mut self, ast: &Ast) -> usize {
+    fn add(&mut self, ast: &Ast, scope: &mut Scope) -> usize {
         match ast {
             Ast::I32(num) => self.add_consts(Value::I32(*num)),
             Ast::F64(num) => self.add_consts(Value::F64(*num)),
             Ast::Bool(val) => self.add_consts(Value::Bool(*val)),
             Ast::Add(a, b) => {
-                let a = self.add(a);
-                let b = self.add(b);
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
                 self.add_inst(Inst::Add(a, b))
             }
             Ast::Sub(a, b) => {
-                let a = self.add(a);
-                let b = self.add(b);
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
                 self.add_inst(Inst::Sub(a, b))
             }
             Ast::Mul(a, b) => {
-                let a = self.add(a);
-                let b = self.add(b);
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
                 self.add_inst(Inst::Mul(a, b))
             }
             Ast::Div(a, b) => {
-                let a = self.add(a);
-                let b = self.add(b);
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
                 self.add_inst(Inst::Div(a, b))
             }
             Ast::Eq(a, b) => {
-                let a = self.add(a);
-                let b = self.add(b);
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
                 self.add_inst(Inst::Eq(a, b))
             }
             Ast::Negative(val) => {
-                let val = self.add(val);
+                let val = self.add(val, scope);
                 self.add_inst(Inst::Neg(val))
             }
             Ast::If(cond, a, b) => {
-                let cond = self.add(cond);
+                let cond = self.add(cond, scope);
 
                 let branch = self.add_placeholder();
 
-                let b = self.add(b);
+                let b = self.add(b, scope);
                 let jump = self.add_placeholder();
 
                 let branch_target = self.next_block();
-                let a = self.add(a);
+                let a = self.add(a, scope);
                 self.blocks.push(BlockData::Assign(b, Inst::Move(a)));
 
                 self.fill_placeholder(branch, BlockData::Branch(cond, branch_target));
@@ -218,29 +215,30 @@ impl<'a> IrBuilder<'a> {
 
                 return b;
             }
-            Ast::Ident(name) => self.map.get(name).unwrap_or(0),
+            Ast::Ident(name) => scope.get(name).unwrap_or(0),
             Ast::FuncCall(func, args) => {
-                let func = self.add(func);
+                let func = self.add(func, scope);
                 let args = if args.len() > 0 {
-                    self.add(&args[0])
+                    self.add(&args[0], scope)
                 } else {
                     0
                 };
                 self.add_inst(Inst::Call(func, args))
             }
             Ast::Block(nodes) => {
+                let scope = &mut scope.child();
                 for node in nodes {
-                    self.add(node);
+                    self.add(node, scope);
                 }
                 0
             }
             Ast::Assign(name, node) => {
-                let reg = self.add(&node);
-                self.map.set(name.clone(), reg);
+                let reg = self.add(&node, scope);
+                scope.set(name.clone(), reg);
                 0
             }
             Ast::Return(node) => {
-                let reg = self.add(&node);
+                let reg = self.add(&node, scope);
                 self.blocks.push(BlockData::Return(reg));
                 0
             }

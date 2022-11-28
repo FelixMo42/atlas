@@ -58,9 +58,14 @@ fn parse_value(lex: &mut Lexer) -> Ast {
         Token::Ident("if") => {
             let c = Box::new(parse_expr(lex));
             let a = Box::new(parse_expr(lex));
-            lex.next(); // else
-            let b = Box::new(parse_expr(lex));
-            Ast::If(c, a, b)
+            let save = lex.save();
+            if lex.next() == Token::Ident("else") {
+                let b = Box::new(parse_expr(lex));
+                Ast::If(c, a, b)
+            } else {
+                lex.load(save);
+                Ast::If(c, a, Box::new(Ast::Block(vec![])))
+            }
         }
         Token::Ident(ident) => Ast::Ident(ident.to_string()),
         Token::OpenB => {

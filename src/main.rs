@@ -77,6 +77,50 @@ mod tests {
             ),
             Value::I32(1)
         );
+        assert_eq!(
+            exec(
+                "
+                fn main() {
+                    if false {
+                        return 1
+                    }
+                    return 2
+                }
+                "
+            ),
+            Value::I32(2)
+        );
+        assert_eq!(
+            exec(
+                "
+                fn main() {
+                    let x = 1
+                    {
+                        let x = 2
+                    }
+                    return x
+                }
+                "
+            ),
+            Value::I32(1)
+        );
+        assert_eq!(
+            exec(
+                "
+                fn bla() {
+                    let x = 2
+                    return 0
+                }
+
+                fn main() {
+                    let x = 1
+                    bla()
+                    return x
+                }
+                "
+            ),
+            Value::I32(1)
+        );
     }
 
     #[test]

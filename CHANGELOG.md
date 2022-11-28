@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.3
+
+### Added
+
+- If branches with out an else statement
+
+### Fixed
+
+- Proper scoping for sub blocks
+
 ## v0.1.2
 
 ### Added
