@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.4
+
+### Added
+
+- Multiple paramaters!
+
 ## v0.1.3
 
 ### Added

@@ -40,11 +40,33 @@ impl<'a> Scope<'a> {
 
 #[derive(Debug)]
 pub struct Func {
-    pub params: Vec<String>,
-    pub body: Vec<BlockData>,
+    body: Vec<BlockData>,
+    num_vars: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
+impl Func {
+    pub fn new(params: Vec<String>, ast: &Ast, scope: &Scope) -> Func {
+        let mut builder = IrBuilder {
+            blocks: vec![BlockData::JumpTo(1)],
+            num_vars: params.len(),
+        };
+
+        let scope = &mut scope.child();
+
+        for (i, param) in params.into_iter().enumerate() {
+            scope.set(param, i);
+        }
+
+        builder.add(ast, scope);
+
+        return Func {
+            body: builder.blocks,
+            num_vars: builder.num_vars,
+        };
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Inst {
     // math ops
     Add(Reg, Reg),
@@ -58,7 +80,7 @@ pub enum Inst {
 
     // misc
     Move(Reg),
-    Call(FuncId, Reg),
+    Call(FuncId, Vec<Reg>),
 }
 
 #[derive(Debug)]
@@ -70,11 +92,13 @@ pub enum BlockData {
     Return(Reg),
 }
 
-pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Value) -> Value {
+pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Vec<Value>) -> Value {
     let mut step = 0;
-    let mut regs: Vec<Value> = vec![Value::Unit; func.body.len()];
+    let mut regs: Vec<Value> = vec![Value::Unit; func.num_vars];
 
-    regs[0] = args;
+    for (i, arg) in args.into_iter().enumerate() {
+        regs[i] = arg;
+    }
 
     loop {
         match &func.body[step] {
@@ -87,8 +111,9 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Value) -> Value {
                     Inst::Eq(a, b) => regs[*a].eq(regs[*b].clone()),
                     Inst::Neg(a) => regs[*a].neg(),
                     Inst::Move(a) => regs[*a].clone(),
-                    Inst::Call(func_id_reg, param_reg) => {
-                        exec_ir(&funcs[*func_id_reg], funcs, regs[*param_reg].clone())
+                    Inst::Call(func_id_reg, param_regs) => {
+                        let args = param_regs.iter().map(|reg| regs[*reg].clone()).collect();
+                        exec_ir(&funcs[*func_id_reg], funcs, args)
                     }
                 };
                 step += 1;
@@ -112,46 +137,31 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Value) -> Value {
     }
 }
 
-pub fn func_to_ir(ast: &Ast, scope: &Scope) -> Vec<BlockData> {
-    let mut builder = IrBuilder {
-        blocks: vec![BlockData::JumpTo(1)],
-    };
-
-    let scope = &mut scope.child();
-
-    builder.add(ast, scope);
-
-    return builder.blocks;
-}
-
-pub fn expr_to_ir(ast: Ast) -> Vec<BlockData> {
-    let mut builder = IrBuilder { blocks: vec![] };
-
-    let reg = builder.add(&ast, &mut Scope::default());
-    builder.blocks.push(BlockData::Return(reg));
-
-    return builder.blocks;
-}
-
 struct IrBuilder {
     blocks: Vec<BlockData>,
+    num_vars: usize,
 }
 
 impl IrBuilder {
+    fn new_var(&mut self) -> Reg {
+        self.num_vars += 1;
+        return self.num_vars - 1;
+    }
+
     fn add_inst(&mut self, inst: Inst) -> usize {
-        let block = self.next_block();
-        self.blocks.push(BlockData::Assign(block, inst));
-        return block;
+        let reg = self.new_var();
+        self.blocks.push(BlockData::Assign(reg, inst));
+        return reg;
     }
 
     fn add_consts(&mut self, value: Value) -> usize {
-        let block = self.next_block();
-        self.blocks.push(BlockData::Consts(block, value));
-        return block;
+        let reg = self.new_var();
+        self.blocks.push(BlockData::Consts(reg, value));
+        return reg;
     }
 
     fn add_placeholder(&mut self) -> usize {
-        let location = self.blocks.len();
+        let location = self.next_block();
         self.blocks.push(BlockData::JumpTo(usize::MAX));
         return location;
     }
@@ -218,12 +228,8 @@ impl IrBuilder {
             Ast::Ident(name) => scope.get(name).unwrap_or(0),
             Ast::FuncCall(func, args) => {
                 let func = self.add(func, scope);
-                let args = if args.len() > 0 {
-                    self.add(&args[0], scope)
-                } else {
-                    0
-                };
-                self.add_inst(Inst::Call(func, args))
+                let arg_regs = args.iter().map(|arg| self.add(arg, scope)).collect();
+                self.add_inst(Inst::Call(func, arg_regs))
             }
             Ast::Block(nodes) => {
                 let scope = &mut scope.child();

@@ -12,18 +12,7 @@ fn main() {}
 
 /// evaluate an expression and returns the the value
 pub fn eval(src: &str) -> Value {
-    let lex = &mut Lexer::new(src);
-    let ast = parse_expr(lex);
-    let val = exec_ir(
-        &Func {
-            body: expr_to_ir(ast),
-            params: vec![],
-        },
-        &vec![],
-        Value::Unit,
-    );
-
-    return val;
+    return exec(&format!("fn main() {{ return {} }}", src));
 }
 
 /// run the main function from source code and returns the result
@@ -44,14 +33,11 @@ pub fn exec(src: &str) -> Value {
     // turn the functions in to ir
     let funcs: Vec<Func> = funcs
         .into_iter()
-        .map(|(_name, params, body)| Func {
-            body: func_to_ir(&body, &scope),
-            params,
-        })
+        .map(|(_name, params, body)| Func::new(params, &body, &scope))
         .collect();
 
     if let Some(func_id) = scope.get("main") {
-        return exec_ir(&funcs[func_id], &funcs, Value::Unit);
+        return exec_ir(&funcs[func_id], &funcs, vec![]);
     } else {
         return Value::Err;
     }
@@ -177,6 +163,21 @@ mod tests {
                 "
             ),
             Value::I32(42)
+        );
+
+        assert_eq!(
+            exec(
+                "
+                    fn add(a, b) {
+                        return a + b
+                    }
+
+                    fn main() {
+                        return add(1, 2)
+                    }
+                "
+            ),
+            Value::I32(3)
         );
 
         assert_eq!(
