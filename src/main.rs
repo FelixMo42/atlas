@@ -48,6 +48,53 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_redefine_variable() {
+        assert_eq!(
+            exec(
+                "
+                fn main() {
+                    let x = 1
+                    x = x + 1
+                    return x
+                }
+                "
+            ),
+            Value::I32(2)
+        );
+        assert_eq!(
+            exec(
+                "
+                fn main() {
+                    let x = 1
+                    if true {
+                        x = x + 1
+                    } else {
+                        x = x + 2
+                    }
+                    return x
+                }
+                "
+            ),
+            Value::I32(2)
+        );
+        assert_eq!(
+            exec(
+                "
+                fn main() {
+                    let x = 1
+                    if true {
+                        let x = 5
+                        x = x + 1
+                    }
+                    return x
+                }
+                "
+            ),
+            Value::I32(1)
+        );
+    }
+
+    #[test]
     fn test_branch_flow() {
         assert_eq!(
             exec(

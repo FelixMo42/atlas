@@ -1,6 +1,7 @@
 #[derive(PartialEq)]
 pub enum Token<'a> {
     Ident(&'a str),
+    Set,
     Err,
 
     // literals
@@ -74,7 +75,7 @@ pub fn get_token(src: &str) -> (Token, usize) {
             },
             5 /* ident */ => match chr {
                 '=' => return (Token::Eq, 2),
-                _ => return (Token::Err, 2),
+                _ => return (Token::Set, 1),
             },
             _ => unreachable!()
         };

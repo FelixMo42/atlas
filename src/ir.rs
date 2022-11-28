@@ -238,10 +238,17 @@ impl IrBuilder {
                 }
                 0
             }
-            Ast::Assign(name, node) => {
+            Ast::Declair(name, node) => {
                 let reg = self.add(&node, scope);
                 scope.set(name.clone(), reg);
-                0
+                reg
+            }
+            Ast::Assign(name, node) => {
+                let reg = self.add(&node, scope);
+                if let Some(var) = scope.get(name) {
+                    self.blocks.push(BlockData::Assign(var, Inst::Move(reg)));
+                }
+                reg
             }
             Ast::Return(node) => {
                 let reg = self.add(&node, scope);

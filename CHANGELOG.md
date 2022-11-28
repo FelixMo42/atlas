@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.5
+
+### Added
+
+- Reassign variables
+
 ## v0.1.4
 
 ### Added

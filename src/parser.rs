@@ -25,8 +25,21 @@ pub enum Ast {
 
     // flow
     If(Box<Ast>, Box<Ast>, Box<Ast>),
-    Assign(String, Box<Ast>),
     Return(Box<Ast>),
+
+    // variables
+    Declair(String, Box<Ast>),
+    Assign(String, Box<Ast>),
+}
+
+fn check(lex: &mut Lexer, token: Token) -> bool {
+    let save = lex.save();
+    if lex.next() == token {
+        return true;
+    } else {
+        lex.load(save);
+        return false;
+    }
 }
 
 fn parse_value(lex: &mut Lexer) -> Ast {
@@ -53,24 +66,29 @@ fn parse_value(lex: &mut Lexer) -> Ast {
                 return Ast::Error;
             };
             lex.next(); // =
-            Ast::Assign(name, Box::new(parse_expr(lex)))
+            Ast::Declair(name, Box::new(parse_expr(lex)))
         }
         Token::Ident("if") => {
             let c = Box::new(parse_expr(lex));
             let a = Box::new(parse_expr(lex));
-            let save = lex.save();
-            if lex.next() == Token::Ident("else") {
+            if check(lex, Token::Ident("else")) {
                 let b = Box::new(parse_expr(lex));
                 Ast::If(c, a, b)
             } else {
-                lex.load(save);
                 Ast::If(c, a, Box::new(Ast::Block(vec![])))
             }
         }
-        Token::Ident(ident) => Ast::Ident(ident.to_string()),
+        Token::Ident(ident) => {
+            let ident = ident.to_string();
+            if check(lex, Token::Set) {
+                Ast::Assign(ident, Box::new(parse_expr(lex)))
+            } else {
+                Ast::Ident(ident)
+            }
+        }
         Token::OpenB => {
             let mut statements = vec![];
-            while !parse_close_braket(lex) {
+            while !check(lex, Token::CloseB) {
                 statements.push(parse_expr(lex));
             }
             Ast::Block(statements)
@@ -79,49 +97,23 @@ fn parse_value(lex: &mut Lexer) -> Ast {
     }
 }
 
-fn parse_close_paren(lex: &mut Lexer) -> bool {
-    let save = lex.save();
-    if lex.next() == Token::CloseP {
-        return true;
-    } else {
-        lex.load(save);
-        return false;
-    }
-}
-
-fn parse_close_braket(lex: &mut Lexer) -> bool {
-    let save = lex.save();
-    if lex.next() == Token::CloseB {
-        return true;
-    } else {
-        lex.load(save);
-        return false;
-    }
-}
-
 fn parse_func_call(lex: &mut Lexer) -> Ast {
     let value = parse_value(lex);
 
-    let save = lex.save();
+    if check(lex, Token::OpenP) {
+        let mut params = vec![];
 
-    match lex.next() {
-        Token::OpenP => {
-            let mut params = vec![];
+        if !check(lex, Token::CloseP) {
+            params.push(parse_expr(lex));
 
-            if !parse_close_paren(lex) {
+            while lex.next() != Token::CloseP {
                 params.push(parse_expr(lex));
-
-                while lex.next() != Token::CloseP {
-                    params.push(parse_expr(lex));
-                }
             }
+        }
 
-            Ast::FuncCall(Box::new(value), params)
-        }
-        _ => {
-            lex.load(save);
-            value
-        }
+        return Ast::FuncCall(Box::new(value), params);
+    } else {
+        return value;
     }
 }
 
@@ -187,7 +179,7 @@ pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Ast)> {
     lex.next(); // (
 
     let mut params = vec![];
-    if !parse_close_paren(lex) {
+    if !check(lex, Token::CloseP) {
         loop {
             if let Token::Ident(name) = lex.next() {
                 params.push(name.to_string());
