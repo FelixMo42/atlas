@@ -8,11 +8,10 @@ pub enum Token<'a> {
     I32(i32),
     F64(f64),
 
-    // parans
-    OpenP,
-    CloseP,
-    OpenB,
-    CloseB,
+    // punctuation
+    Open(char),
+    Close(char),
+    Comma,
 
     // mathmatical operator
     Add,
@@ -44,10 +43,13 @@ pub fn get_token(src: &str) -> (Token, usize) {
                     '+' => return (Token::Add, 1),
                     '*' => return (Token::Mul, 1),
                     '/' => return (Token::Div, 1),
-                    '(' => return (Token::OpenP, 1),
-                    ')' => return (Token::CloseP, 1),
-                    '{' => return (Token::OpenB, 1),
-                    '}' => return (Token::CloseB, 1),
+                    '(' => return (Token::Open('('), 1),
+                    ')' => return (Token::Close(')'), 1),
+                    '{' => return (Token::Open('{'), 1),
+                    '}' => return (Token::Close('}'), 1),
+                    '[' => return (Token::Open('['), 1),
+                    ']' => return (Token::Close(']'), 1),
+                    ',' => return (Token::Comma, 1),
                     '=' => 5,
                     '<' => 6,
                     '>' => 7,

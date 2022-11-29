@@ -38,6 +38,9 @@ pub enum Ast {
     // variables
     Declair(String, Box<Ast>),
     Assign(String, Box<Ast>),
+
+    // misc
+    Array(Vec<Ast>),
 }
 
 fn check(lex: &mut Lexer, token: Token) -> bool {
@@ -53,10 +56,10 @@ fn check(lex: &mut Lexer, token: Token) -> bool {
 fn parse_value(lex: &mut Lexer) -> Ast {
     match lex.next() {
         Token::Sub => Ast::Negative(Box::new(parse_value(lex))),
-        Token::OpenP => {
+        Token::Open('(') => {
             let expr = parse_expr(lex);
 
-            if lex.next() == Token::CloseP {
+            if lex.next() == Token::Close(')') {
                 expr
             } else {
                 Ast::Error
@@ -95,12 +98,20 @@ fn parse_value(lex: &mut Lexer) -> Ast {
                 Ast::Ident(ident)
             }
         }
-        Token::OpenB => {
+        Token::Open('{') => {
             let mut statements = vec![];
-            while !check(lex, Token::CloseB) {
+            while !check(lex, Token::Close('}')) {
                 statements.push(parse_expr(lex));
             }
             Ast::Block(statements)
+        }
+        Token::Open('[') => {
+            let mut values = vec![];
+            while !check(lex, Token::Close(']')) {
+                values.push(parse_expr(lex));
+                check(lex, Token::Comma);
+            }
+            Ast::Array(values)
         }
         _ => Ast::Error,
     }
@@ -109,13 +120,13 @@ fn parse_value(lex: &mut Lexer) -> Ast {
 fn parse_func_call(lex: &mut Lexer) -> Ast {
     let value = parse_value(lex);
 
-    if check(lex, Token::OpenP) {
+    if check(lex, Token::Open('(')) {
         let mut params = vec![];
 
-        if !check(lex, Token::CloseP) {
+        if !check(lex, Token::Close(')')) {
             params.push(parse_expr(lex));
 
-            while lex.next() != Token::CloseP {
+            while lex.next() != Token::Close(')') {
                 params.push(parse_expr(lex));
             }
         }
@@ -193,7 +204,7 @@ pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Ast)> {
     lex.next(); // (
 
     let mut params = vec![];
-    if !check(lex, Token::CloseP) {
+    if !check(lex, Token::Close(')')) {
         loop {
             if let Token::Ident(name) = lex.next() {
                 params.push(name.to_string());
@@ -201,7 +212,7 @@ pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Ast)> {
                 return None;
             }
 
-            if lex.next() == Token::CloseP {
+            if lex.next() == Token::Close(')') {
                 break;
             }
         }

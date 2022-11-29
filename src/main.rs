@@ -57,7 +57,7 @@ mod tests {
                 }
                 "
             ),
-            Value::I32(42)
+            Value::Unit
         )
     }
 

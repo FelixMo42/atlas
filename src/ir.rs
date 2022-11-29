@@ -307,6 +307,7 @@ impl IrBuilder {
                 0
             }
             Ast::Error => self.add_consts(Value::Err),
+            Ast::Array(_values) => 0,
         }
     }
 }
