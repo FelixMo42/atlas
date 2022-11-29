@@ -75,8 +75,16 @@ pub enum Inst {
     Div(Reg, Reg),
     Neg(Reg),
 
+    // logical ops
+    Not(Reg),
+
     // boolean ops
     Eq(Reg, Reg),
+    Ne(Reg, Reg),
+    Le(Reg, Reg),
+    Lt(Reg, Reg),
+    Ge(Reg, Reg),
+    Gt(Reg, Reg),
 
     // misc
     Move(Reg),
@@ -109,6 +117,12 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Vec<Value>) -> Value {
                     Inst::Mul(a, b) => regs[*a].mul(regs[*b].clone()),
                     Inst::Div(a, b) => regs[*a].div(regs[*b].clone()),
                     Inst::Eq(a, b) => regs[*a].eq(regs[*b].clone()),
+                    Inst::Ne(a, b) => regs[*a].ne(regs[*b].clone()),
+                    Inst::Lt(a, b) => regs[*a].lt(regs[*b].clone()),
+                    Inst::Le(a, b) => regs[*a].le(regs[*b].clone()),
+                    Inst::Gt(a, b) => regs[*a].gt(regs[*b].clone()),
+                    Inst::Ge(a, b) => regs[*a].ge(regs[*b].clone()),
+                    Inst::Not(a) => regs[*a].not(),
                     Inst::Neg(a) => regs[*a].neg(),
                     Inst::Move(a) => regs[*a].clone(),
                     Inst::Call(func_id_reg, param_regs) => {
@@ -204,6 +218,31 @@ impl IrBuilder {
                 let b = self.add(b, scope);
                 self.add_inst(Inst::Eq(a, b))
             }
+            Ast::Ne(a, b) => {
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
+                self.add_inst(Inst::Ne(a, b))
+            }
+            Ast::Lt(a, b) => {
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
+                self.add_inst(Inst::Lt(a, b))
+            }
+            Ast::Le(a, b) => {
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
+                self.add_inst(Inst::Le(a, b))
+            }
+            Ast::Gt(a, b) => {
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
+                self.add_inst(Inst::Gt(a, b))
+            }
+            Ast::Ge(a, b) => {
+                let a = self.add(a, scope);
+                let b = self.add(b, scope);
+                self.add_inst(Inst::Ge(a, b))
+            }
             Ast::Negative(val) => {
                 let val = self.add(val, scope);
                 self.add_inst(Inst::Neg(val))
@@ -249,6 +288,16 @@ impl IrBuilder {
                     self.blocks.push(BlockData::Assign(var, Inst::Move(reg)));
                 }
                 reg
+            }
+            Ast::While(cond, block) => {
+                let label = self.next_block();
+                let cond = self.add(&cond, scope);
+                let cond = self.add_inst(Inst::Not(cond));
+                let branch = self.add_placeholder();
+                self.add(&block, scope);
+                self.blocks.push(BlockData::JumpTo(label));
+                self.fill_placeholder(branch, BlockData::Branch(cond, self.next_block()));
+                0
             }
             Ast::Return(node) => {
                 let reg = self.add(&node, scope);

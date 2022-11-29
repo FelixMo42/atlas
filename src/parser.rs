@@ -21,10 +21,18 @@ pub enum Ast {
     Sub(Box<Ast>, Box<Ast>),
     Mul(Box<Ast>, Box<Ast>),
     Div(Box<Ast>, Box<Ast>),
+
+    // comparisons
     Eq(Box<Ast>, Box<Ast>),
+    Gt(Box<Ast>, Box<Ast>),
+    Lt(Box<Ast>, Box<Ast>),
+    Ge(Box<Ast>, Box<Ast>),
+    Le(Box<Ast>, Box<Ast>),
+    Ne(Box<Ast>, Box<Ast>),
 
     // flow
     If(Box<Ast>, Box<Ast>, Box<Ast>),
+    While(Box<Ast>, Box<Ast>),
     Return(Box<Ast>),
 
     // variables
@@ -58,6 +66,7 @@ fn parse_value(lex: &mut Lexer) -> Ast {
         Token::F64(value) => Ast::F64(value),
         Token::Ident("true") => Ast::Bool(true),
         Token::Ident("false") => Ast::Bool(false),
+        Token::Ident("while") => Ast::While(Box::new(parse_expr(lex)), Box::new(parse_expr(lex))),
         Token::Ident("return") => Ast::Return(Box::new(parse_expr(lex))),
         Token::Ident("let") => {
             let name = if let Token::Ident(name) = lex.next() {
@@ -154,6 +163,11 @@ fn parse_cmp(lex: &mut Lexer) -> Ast {
 
     match lex.next() {
         Token::Eq => Ast::Eq(Box::new(a), Box::new(parse_add(lex))),
+        Token::Ne => Ast::Ne(Box::new(a), Box::new(parse_add(lex))),
+        Token::Gt => Ast::Gt(Box::new(a), Box::new(parse_add(lex))),
+        Token::Ge => Ast::Ge(Box::new(a), Box::new(parse_add(lex))),
+        Token::Lt => Ast::Lt(Box::new(a), Box::new(parse_add(lex))),
+        Token::Le => Ast::Le(Box::new(a), Box::new(parse_add(lex))),
         _ => {
             lex.load(save);
             a

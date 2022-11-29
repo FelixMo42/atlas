@@ -48,6 +48,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_loop() {
+        assert_eq!(
+            exec(
+                "
+                fn main() {
+                    let x = 1
+                    while x < 10 {
+                        x = x + 1
+                    }
+                    return x
+                }
+                "
+            ),
+            Value::I32(10)
+        );
+    }
+
+    #[test]
     fn test_redefine_variable() {
         assert_eq!(
             exec(

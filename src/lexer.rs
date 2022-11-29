@@ -22,6 +22,11 @@ pub enum Token<'a> {
 
     // comparison
     Eq,
+    Gt,
+    Lt,
+    Ge,
+    Le,
+    Ne,
 }
 
 pub fn get_token(src: &str) -> (Token, usize) {
@@ -44,6 +49,9 @@ pub fn get_token(src: &str) -> (Token, usize) {
                     '{' => return (Token::OpenB, 1),
                     '}' => return (Token::CloseB, 1),
                     '=' => 5,
+                    '<' => 6,
+                    '>' => 7,
+                    '!' => 8,
                     '0'..='9' => 1,
                     'a'..='z' | 'A'..='Z' | '_' => 4,
                     '.' => 3,
@@ -73,9 +81,21 @@ pub fn get_token(src: &str) -> (Token, usize) {
                 'a'..='z' | 'A'..='Z' | '_' => 4,
                 _ => return (Token::Ident(&src[..len]), len),
             },
-            5 /* ident */ => match chr {
+            5 /* equal */ => match chr {
                 '=' => return (Token::Eq, 2),
                 _ => return (Token::Set, 1),
+            },
+            6 /* greater than */ => match chr {
+                '=' => return (Token::Le, 2),
+                _ => return (Token::Lt, 1),
+            },
+            7 /* less than */ => match chr {
+                '=' => return (Token::Ge, 2),
+                _ => return (Token::Gt, 1),
+            },
+            8 /* not */ => match chr {
+                '=' => return (Token::Ne, 2),
+                _ => return (Token::Err, 1),
             },
             _ => unreachable!()
         };

@@ -56,6 +56,54 @@ impl Value {
             _ => Value::Err,
         }
     }
+
+    pub fn ne(&self, b: Value) -> Value {
+        match (self, b) {
+            (Value::I32(a), Value::I32(b)) => Value::Bool(*a != b),
+            (Value::F64(a), Value::F64(b)) => Value::Bool(*a != b),
+            (Value::Bool(a), Value::Bool(b)) => Value::Bool(*a != b),
+            _ => Value::Err,
+        }
+    }
+
+    pub fn lt(&self, b: Value) -> Value {
+        match (self, b) {
+            (Value::I32(a), Value::I32(b)) => Value::Bool(*a < b),
+            (Value::F64(a), Value::F64(b)) => Value::Bool(*a < b),
+            _ => Value::Err,
+        }
+    }
+
+    pub fn le(&self, b: Value) -> Value {
+        match (self, b) {
+            (Value::I32(a), Value::I32(b)) => Value::Bool(*a <= b),
+            (Value::F64(a), Value::F64(b)) => Value::Bool(*a <= b),
+            _ => Value::Err,
+        }
+    }
+
+    pub fn gt(&self, b: Value) -> Value {
+        match (self, b) {
+            (Value::I32(a), Value::I32(b)) => Value::Bool(*a > b),
+            (Value::F64(a), Value::F64(b)) => Value::Bool(*a > b),
+            _ => Value::Err,
+        }
+    }
+
+    pub fn ge(&self, b: Value) -> Value {
+        match (self, b) {
+            (Value::I32(a), Value::I32(b)) => Value::Bool(*a >= b),
+            (Value::F64(a), Value::F64(b)) => Value::Bool(*a >= b),
+            _ => Value::Err,
+        }
+    }
+
+    pub fn not(&self) -> Value {
+        match self {
+            Value::Bool(a) => Value::Bool(!*a),
+            _ => Value::Err,
+        }
+    }
 }
 
 impl Value {
