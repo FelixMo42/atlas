@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.0
+
+### Fixed
+
+- You don't need a return statement
+
 ## v0.1.6
 
 ### Added

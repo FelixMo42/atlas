@@ -16,19 +16,21 @@ fn fib(n) {
         else fib(n - 1) + fib(n - 2)
 }
 
-fn add(a, b) {
+fn times(a, b) {
     let t = 0
 
     if a == 0 {
-        return b
+        return 0
     }
 
     if (b == 0) {
-        return a
+        return 0
     }
 
-    t = t + a
-    t = t + b
+    while a != 0 {
+        t = t + a
+        a = a - 1
+    }
 
     return t
 }
@@ -37,7 +39,7 @@ fn main() {
     if true {
         return fib(5)
     } else {
-        return double(3.3, 6.5)
+        return times(3, 6.5)
     }
 }
 ```
@@ -45,7 +47,7 @@ fn main() {
 ## Roadmap
 
 - [x] version 1: make it turing complete
-- [ ] version 2: switch over to using register based ir and add basic language
+- [x] version 2: switch over to using register based ir and add basic language
       features
 - [ ] version 3: add linear memory (a la wasm)
 

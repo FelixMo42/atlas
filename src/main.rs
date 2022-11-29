@@ -48,6 +48,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_array() {
+        assert_eq!(
+            exec(
+                "
+                fn main() {
+                    arr = []
+                }
+                "
+            ),
+            Value::I32(42)
+        )
+    }
+
+    #[test]
     fn test_loop() {
         assert_eq!(
             exec(

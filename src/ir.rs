@@ -59,6 +59,8 @@ impl Func {
 
         builder.add(ast, scope);
 
+        builder.blocks.push(BlockData::Return(0));
+
         return Func {
             body: builder.blocks,
             num_vars: builder.num_vars,
