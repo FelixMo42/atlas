@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Value {
     I32(i32),
     F64(f64),

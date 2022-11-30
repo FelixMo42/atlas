@@ -1,11 +1,13 @@
 mod ir;
 mod lexer;
 mod parser;
+mod std;
 mod value;
 
 use crate::ir::*;
 use crate::lexer::*;
 use crate::parser::*;
+use crate::std::*;
 use crate::value::*;
 
 fn main() {}
@@ -19,25 +21,30 @@ pub fn eval(src: &str) -> Value {
 pub fn exec(src: &str) -> Value {
     // parse all the functions
     let lex = &mut Lexer::new(src);
-    let mut funcs = vec![];
+    let mut funcs_ast = vec![];
     while let Some(func) = parse_func_def(lex) {
-        funcs.push(func)
+        funcs_ast.push(func)
     }
 
+    let scope = &mut Scope::default();
+    let funcs = &mut vec![];
+
+    // load the standard library
+    std(scope, funcs);
+
     // register the functions in the scope
-    let mut scope = Scope::default();
-    for i in 0..funcs.len() {
-        scope.set(funcs[i].0.clone(), i);
+    for i in 0..funcs_ast.len() {
+        scope.set(funcs_ast[i].0.clone(), funcs.len() + i);
     }
 
     // turn the functions in to ir
-    let funcs: Vec<Func> = funcs
-        .into_iter()
-        .map(|(_name, params, body)| Func::new(params, &body, &scope))
-        .collect();
+    for (_name, params, ast) in funcs_ast {
+        funcs.push(Func::new(params, &ast, &scope))
+    }
 
     if let Some(func_id) = scope.get("main") {
-        return exec_ir(&funcs[func_id], &funcs, vec![]);
+        let memory = &mut vec![Value::Unit; 3];
+        return exec_ir(&funcs[func_id], &funcs, memory, vec![]);
     } else {
         return Value::Err;
     }
@@ -48,16 +55,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_array() {
+    fn test_memory() {
         assert_eq!(
             exec(
                 "
                 fn main() {
-                    arr = []
+                    let address = 0
+                    store(address, 42)
+                    return load(address)
                 }
                 "
             ),
-            Value::Unit
+            Value::I32(42)
         )
     }
 
