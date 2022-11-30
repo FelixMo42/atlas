@@ -16,7 +16,7 @@ pub struct Scope<'a> {
 impl<'a> Scope<'a> {
     pub fn get(&self, name: &str) -> Option<usize> {
         if let Some(value) = self.vars.get(name) {
-            return Some(value.clone());
+            return Some(*value);
         } else if let Some(parent) = self.parent {
             return parent.get(name);
         } else {
@@ -40,14 +40,14 @@ impl<'a> Scope<'a> {
 
 #[derive(Debug)]
 pub struct Func {
-    body: Vec<BlockData>,
-    num_vars: usize,
+    pub num_vars: usize,
+    pub body: Vec<BlockData>,
 }
 
 impl Func {
     pub fn new(params: Vec<String>, ast: &Ast, scope: &Scope) -> Func {
         let mut builder = IrBuilder {
-            blocks: vec![BlockData::JumpTo(1)],
+            blocks: vec![],
             num_vars: params.len(),
         };
 
@@ -91,6 +91,10 @@ pub enum Inst {
     // misc
     Move(Reg),
     Call(FuncId, Vec<Reg>),
+
+    // memmory
+    Store(Reg, Reg),
+    Load(Reg),
 }
 
 #[derive(Debug)]
@@ -102,7 +106,7 @@ pub enum BlockData {
     Return(Reg),
 }
 
-pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Vec<Value>) -> Value {
+pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<Value>) -> Value {
     let mut step = 0;
     let mut regs: Vec<Value> = vec![Value::Unit; func.num_vars];
 
@@ -114,22 +118,27 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Vec<Value>) -> Value {
         match &func.body[step] {
             BlockData::Assign(value, inst) => {
                 regs[*value] = match inst {
-                    Inst::Add(a, b) => regs[*a].add(regs[*b].clone()),
-                    Inst::Sub(a, b) => regs[*a].sub(regs[*b].clone()),
-                    Inst::Mul(a, b) => regs[*a].mul(regs[*b].clone()),
-                    Inst::Div(a, b) => regs[*a].div(regs[*b].clone()),
-                    Inst::Eq(a, b) => regs[*a].eq(regs[*b].clone()),
-                    Inst::Ne(a, b) => regs[*a].ne(regs[*b].clone()),
-                    Inst::Lt(a, b) => regs[*a].lt(regs[*b].clone()),
-                    Inst::Le(a, b) => regs[*a].le(regs[*b].clone()),
-                    Inst::Gt(a, b) => regs[*a].gt(regs[*b].clone()),
-                    Inst::Ge(a, b) => regs[*a].ge(regs[*b].clone()),
+                    Inst::Store(address, value) => {
+                        mem[*address] = regs[*value];
+                        return regs[*value];
+                    }
+                    Inst::Load(address) => mem[*address],
+                    Inst::Add(a, b) => regs[*a].add(regs[*b]),
+                    Inst::Sub(a, b) => regs[*a].sub(regs[*b]),
+                    Inst::Mul(a, b) => regs[*a].mul(regs[*b]),
+                    Inst::Div(a, b) => regs[*a].div(regs[*b]),
+                    Inst::Eq(a, b) => regs[*a].eq(regs[*b]),
+                    Inst::Ne(a, b) => regs[*a].ne(regs[*b]),
+                    Inst::Lt(a, b) => regs[*a].lt(regs[*b]),
+                    Inst::Le(a, b) => regs[*a].le(regs[*b]),
+                    Inst::Gt(a, b) => regs[*a].gt(regs[*b]),
+                    Inst::Ge(a, b) => regs[*a].ge(regs[*b]),
                     Inst::Not(a) => regs[*a].not(),
                     Inst::Neg(a) => regs[*a].neg(),
-                    Inst::Move(a) => regs[*a].clone(),
+                    Inst::Move(a) => regs[*a],
                     Inst::Call(func_id_reg, param_regs) => {
-                        let args = param_regs.iter().map(|reg| regs[*reg].clone()).collect();
-                        exec_ir(&funcs[*func_id_reg], funcs, args)
+                        let args = param_regs.iter().map(|reg| regs[*reg]).collect();
+                        exec_ir(&funcs[*func_id_reg], funcs, mem, args)
                     }
                 };
                 step += 1;
@@ -142,12 +151,12 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, args: Vec<Value>) -> Value {
                 }
             }
             BlockData::Consts(reg, value) => {
-                regs[*reg] = value.clone();
+                regs[*reg] = *value;
                 step += 1;
             }
             BlockData::JumpTo(block) => step = *block,
             BlockData::Return(value) => {
-                return regs[*value].clone();
+                return regs[*value];
             }
         }
     }
@@ -266,7 +275,7 @@ impl IrBuilder {
 
                 return b;
             }
-            Ast::Ident(name) => scope.get(name).unwrap_or(0),
+            Ast::Ident(name) => scope.get(name).unwrap_or(usize::MAX),
             Ast::FuncCall(func, args) => {
                 let func = self.add(func, scope);
                 let arg_regs = args.iter().map(|arg| self.add(arg, scope)).collect();
