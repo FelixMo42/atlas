@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.2
+
+### Added
+
+- comments!
+
 ## v0.2.1
 
 ### Added

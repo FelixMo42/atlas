@@ -1,5 +1,6 @@
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Token<'a> {
+    Comment,
     Ident(&'a str),
     Set,
     Err,
@@ -28,7 +29,7 @@ pub enum Token<'a> {
     Ne,
 }
 
-pub fn get_token(src: &str) -> (Token, usize) {
+pub fn parse_token(src: &str) -> (Token, usize) {
     let mut step = 0;
     let mut len = 0;
 
@@ -42,7 +43,7 @@ pub fn get_token(src: &str) -> (Token, usize) {
                     '-' => return (Token::Sub, 1),
                     '+' => return (Token::Add, 1),
                     '*' => return (Token::Mul, 1),
-                    '/' => return (Token::Div, 1),
+                    '/' => 9,
                     '(' => return (Token::Open('('), 1),
                     ')' => return (Token::Close(')'), 1),
                     '{' => return (Token::Open('{'), 1),
@@ -99,6 +100,14 @@ pub fn get_token(src: &str) -> (Token, usize) {
                 '=' => return (Token::Ne, 2),
                 _ => return (Token::Err, 1),
             },
+            9 /* maybe comment */ => match chr {
+                '/' => 10,
+                _ => return (Token::Div, 1)
+            }
+            10 /* comment */ => match chr {
+                '\n' | '\x00' => return (Token::Comment, len),
+                _ => 10
+            }
             _ => unreachable!()
         };
 
@@ -110,6 +119,7 @@ pub fn get_token(src: &str) -> (Token, usize) {
 pub struct Lexer<'a> {
     src: &'a str,
     index: usize,
+    token: Token<'a>,
 }
 
 fn calc_whitespace(src: &str, index: usize) -> usize {
@@ -128,6 +138,7 @@ impl<'a> Lexer<'a> {
         return Lexer {
             src: src.trim(),
             index: 0,
+            token: Token::Err,
         };
     }
 
@@ -136,11 +147,17 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn next(&mut self) -> Token {
-        let (tok, len) = get_token(&self.src[self.index..]);
+        self._next();
+        while self.token == Token::Comment {
+            self._next();
+        }
+        return self.token;
+    }
 
+    fn _next(&mut self) {
+        let (tok, len) = parse_token(&self.src[self.index..]);
         self.index += len + calc_whitespace(&self.src, self.index + len);
-
-        return tok;
+        self.token = tok;
     }
 
     pub fn load(&mut self, index: usize) {

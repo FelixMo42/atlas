@@ -71,6 +71,31 @@ mod tests {
     }
 
     #[test]
+    fn comment() {
+        assert_eq!(
+            exec(
+                "
+                // aofhawf
+                fn ret() {
+                    // are //
+                    return 42 // 23agr 3
+                }
+
+                // oy9y84gh
+                fn main() {
+                    // [0ug8y 48y ]
+                    let x = ret() // oauyifg
+                    // 8wy4ihg 
+                    return x // ouahf
+                }
+                // a;oehf
+                "
+            ),
+            Value::I32(42)
+        )
+    }
+
+    #[test]
     fn test_loop() {
         assert_eq!(
             exec(
