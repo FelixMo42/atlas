@@ -1,53 +1,22 @@
 mod ir;
 mod lexer;
+mod module;
 mod parser;
-mod std;
 mod value;
 
-use crate::ir::*;
-use crate::lexer::*;
-use crate::parser::*;
-use crate::std::*;
+use crate::module::*;
 use crate::value::*;
 
 fn main() {}
 
+/// run the main function from source code and returns the result
+pub fn exec(src: &str) -> Value {
+    Module::from_src(src).exec("main", vec![])
+}
+
 /// evaluate an expression and returns the the value
 pub fn eval(src: &str) -> Value {
     return exec(&format!("fn main() {{ return {} }}", src));
-}
-
-/// run the main function from source code and returns the result
-pub fn exec(src: &str) -> Value {
-    // parse all the functions
-    let lex = &mut Lexer::new(src);
-    let mut funcs_ast = vec![];
-    while let Some(func) = parse_func_def(lex) {
-        funcs_ast.push(func)
-    }
-
-    let scope = &mut Scope::default();
-    let funcs = &mut vec![];
-
-    // load the standard library
-    std(scope, funcs);
-
-    // register the functions in the scope
-    for i in 0..funcs_ast.len() {
-        scope.set(funcs_ast[i].0.clone(), funcs.len() + i);
-    }
-
-    // turn the functions in to ir
-    for (_name, params, ast) in funcs_ast {
-        funcs.push(Func::new(params, &ast, &scope))
-    }
-
-    if let Some(func_id) = scope.get("main") {
-        let memory = &mut vec![];
-        return exec_ir(&funcs[func_id], &funcs, memory, vec![]);
-    } else {
-        return Value::Err;
-    }
 }
 
 #[cfg(test)]

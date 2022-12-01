@@ -40,12 +40,13 @@ impl<'a> Scope<'a> {
 
 #[derive(Debug)]
 pub struct Func {
+    pub name: String,
     pub num_vars: usize,
     pub body: Vec<BlockData>,
 }
 
 impl Func {
-    pub fn new(params: Vec<String>, ast: &Ast, scope: &Scope) -> Func {
+    pub fn new(name: String, params: Vec<String>, ast: &Ast, scope: &Scope) -> Func {
         let mut builder = IrBuilder {
             blocks: vec![],
             num_vars: params.len(),
@@ -62,6 +63,7 @@ impl Func {
         builder.blocks.push(BlockData::Return(0));
 
         return Func {
+            name,
             body: builder.blocks,
             num_vars: builder.num_vars,
         };
