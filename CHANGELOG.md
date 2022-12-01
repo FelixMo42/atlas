@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.1
+
+### Added
+
+- alloc, store and load built in functions
+
 ## v0.2.0
 
 ### Fixed
