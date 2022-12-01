@@ -81,7 +81,7 @@ pub fn parse_token(src: &str) -> (Token, usize) {
                 _ => return (Token::Err, 1),
             },
             4 /* ident */ => match chr {
-                'a'..='z' | 'A'..='Z' | '_' => 4,
+                'a'..='z' | 'A'..='Z' | '_' | '0'..='9' => 4,
                 _ => return (Token::Ident(&src[..len]), len),
             },
             5 /* equal */ => match chr {

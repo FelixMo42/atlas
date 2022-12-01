@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.3
+
+### Added
+
+- Allow numbers in identifiers
+
 ## v0.2.2
 
 ### Added

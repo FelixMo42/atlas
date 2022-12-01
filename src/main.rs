@@ -71,7 +71,7 @@ mod tests {
     }
 
     #[test]
-    fn comment() {
+    fn test_comment() {
         assert_eq!(
             exec(
                 "

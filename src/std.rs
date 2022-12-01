@@ -12,10 +12,7 @@ pub fn std(scope: &mut Scope, funcs: &mut Vec<Func>) {
         "alloc",
         Func {
             num_vars: 1,
-            body: vec![
-                BlockData::Assign(0, Inst::Alloc(0)),
-                BlockData::Return(0),
-            ],
+            body: vec![BlockData::Assign(0, Inst::Alloc(0)), BlockData::Return(0)],
         },
     );
 
