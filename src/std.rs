@@ -9,6 +9,19 @@ pub fn std(scope: &mut Scope, funcs: &mut Vec<Func>) {
     add(
         scope,
         funcs,
+        "alloc",
+        Func {
+            num_vars: 1,
+            body: vec![
+                BlockData::Assign(0, Inst::Alloc(0)),
+                BlockData::Return(0),
+            ],
+        },
+    );
+
+    add(
+        scope,
+        funcs,
         "store",
         Func {
             num_vars: 2,

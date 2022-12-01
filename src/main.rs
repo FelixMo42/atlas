@@ -43,7 +43,7 @@ pub fn exec(src: &str) -> Value {
     }
 
     if let Some(func_id) = scope.get("main") {
-        let memory = &mut vec![Value::Unit; 3];
+        let memory = &mut vec![];
         return exec_ir(&funcs[func_id], &funcs, memory, vec![]);
     } else {
         return Value::Err;
@@ -60,7 +60,7 @@ mod tests {
             exec(
                 "
                 fn main() {
-                    let address = 0
+                    let address = alloc(100)
                     store(address, 42)
                     return load(address)
                 }

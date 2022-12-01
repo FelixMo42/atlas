@@ -93,6 +93,7 @@ pub enum Inst {
     Call(FuncId, Vec<Reg>),
 
     // memmory
+    Alloc(Reg),
     Store(Reg, Reg),
     Load(Reg),
 }
@@ -139,6 +140,11 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<V
                     Inst::Call(func_id_reg, param_regs) => {
                         let args = param_regs.iter().map(|reg| regs[*reg]).collect();
                         exec_ir(&funcs[*func_id_reg], funcs, mem, args)
+                    }
+                    Inst::Alloc(a) => {
+                        let start = mem.len();
+                        mem.extend((0..regs[*a].as_i32()).map(|_| Value::Unit));
+                        return Value::I32(start as i32);
                     }
                 };
                 step += 1;
