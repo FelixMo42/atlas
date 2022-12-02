@@ -1,4 +1,4 @@
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum Token<'a> {
     Comment,
     Ident(&'a str),
@@ -29,7 +29,7 @@ pub enum Token<'a> {
     Ne,
 }
 
-pub fn parse_token(src: &str) -> (Token, usize) {
+fn parse_token(src: &str) -> (Token, usize) {
     let mut step = 0;
     let mut len = 0;
 
@@ -116,21 +116,11 @@ pub fn parse_token(src: &str) -> (Token, usize) {
     }
 }
 
+#[derive(Debug)]
 pub struct Lexer<'a> {
     src: &'a str,
     index: usize,
     token: Token<'a>,
-}
-
-fn calc_whitespace(src: &str, index: usize) -> usize {
-    if index >= src.len() {
-        0
-    } else {
-        src[index..]
-            .chars()
-            .take_while(|c| c.is_whitespace())
-            .count()
-    }
 }
 
 impl<'a> Lexer<'a> {
@@ -162,5 +152,16 @@ impl<'a> Lexer<'a> {
 
     pub fn load(&mut self, index: usize) {
         self.index = index
+    }
+}
+
+fn calc_whitespace(src: &str, index: usize) -> usize {
+    if index >= src.len() {
+        0
+    } else {
+        src[index..]
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .count()
     }
 }

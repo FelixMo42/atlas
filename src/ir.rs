@@ -1,42 +1,10 @@
+use crate::module::*;
 use crate::parser::*;
 use crate::value::*;
-
-use std::collections::HashMap;
 
 type Reg = usize;
 type FuncId = usize;
 type Block = usize;
-
-#[derive(Default)]
-pub struct Scope<'a> {
-    vars: HashMap<String, usize>,
-    parent: Option<&'a Scope<'a>>,
-}
-
-impl<'a> Scope<'a> {
-    pub fn get(&self, name: &str) -> Option<usize> {
-        if let Some(value) = self.vars.get(name) {
-            return Some(*value);
-        } else if let Some(parent) = self.parent {
-            return parent.get(name);
-        } else {
-            return None;
-        }
-    }
-
-    pub fn set(&mut self, name: String, value: usize) {
-        self.vars.insert(name, value);
-    }
-}
-
-impl<'a> Scope<'a> {
-    pub fn child(&self) -> Scope {
-        return Scope {
-            vars: HashMap::new(),
-            parent: Some(self),
-        };
-    }
-}
 
 #[derive(Debug)]
 pub struct Func {
@@ -46,13 +14,13 @@ pub struct Func {
 }
 
 impl Func {
-    pub fn new(name: String, params: Vec<String>, ast: &Ast, scope: &Scope) -> Func {
+    pub fn new(module: &Module, name: String, params: Vec<String>, ast: &Ast) -> Func {
         let mut builder = IrBuilder {
             blocks: vec![],
             num_vars: params.len(),
         };
 
-        let scope = &mut scope.child();
+        let scope = &mut module.scope.child();
 
         for (i, param) in params.into_iter().enumerate() {
             scope.set(param, i);
@@ -107,67 +75,6 @@ pub enum BlockData {
     Consts(Reg, Value),
     JumpTo(Block),
     Return(Reg),
-}
-
-pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<Value>) -> Value {
-    let mut step = 0;
-    let mut regs: Vec<Value> = vec![Value::Unit; func.num_vars];
-
-    for (i, arg) in args.into_iter().enumerate() {
-        regs[i] = arg;
-    }
-
-    loop {
-        match &func.body[step] {
-            BlockData::Assign(value, inst) => {
-                regs[*value] = match inst {
-                    Inst::Store(address, value) => {
-                        mem[*address] = regs[*value];
-                        return regs[*value];
-                    }
-                    Inst::Load(address) => mem[*address],
-                    Inst::Add(a, b) => regs[*a].add(regs[*b]),
-                    Inst::Sub(a, b) => regs[*a].sub(regs[*b]),
-                    Inst::Mul(a, b) => regs[*a].mul(regs[*b]),
-                    Inst::Div(a, b) => regs[*a].div(regs[*b]),
-                    Inst::Eq(a, b) => regs[*a].eq(regs[*b]),
-                    Inst::Ne(a, b) => regs[*a].ne(regs[*b]),
-                    Inst::Lt(a, b) => regs[*a].lt(regs[*b]),
-                    Inst::Le(a, b) => regs[*a].le(regs[*b]),
-                    Inst::Gt(a, b) => regs[*a].gt(regs[*b]),
-                    Inst::Ge(a, b) => regs[*a].ge(regs[*b]),
-                    Inst::Not(a) => regs[*a].not(),
-                    Inst::Neg(a) => regs[*a].neg(),
-                    Inst::Move(a) => regs[*a],
-                    Inst::Call(func_id_reg, param_regs) => {
-                        let args = param_regs.iter().map(|reg| regs[*reg]).collect();
-                        exec_ir(&funcs[*func_id_reg], funcs, mem, args)
-                    }
-                    Inst::Alloc(a) => {
-                        let start = mem.len();
-                        mem.extend((0..regs[*a].as_i32()).map(|_| Value::Unit));
-                        return Value::I32(start as i32);
-                    }
-                };
-                step += 1;
-            }
-            BlockData::Branch(cond, block) => {
-                if regs[*cond].as_bool() {
-                    step = *block
-                } else {
-                    step += 1;
-                }
-            }
-            BlockData::Consts(reg, value) => {
-                regs[*reg] = *value;
-                step += 1;
-            }
-            BlockData::JumpTo(block) => step = *block,
-            BlockData::Return(value) => {
-                return regs[*value];
-            }
-        }
-    }
 }
 
 struct IrBuilder {
@@ -325,6 +232,67 @@ impl IrBuilder {
             }
             Ast::Error => self.add_consts(Value::Err),
             Ast::Array(_values) => 0,
+        }
+    }
+}
+
+pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<Value>) -> Value {
+    let mut step = 0;
+    let mut regs: Vec<Value> = vec![Value::Unit; func.num_vars];
+
+    for (i, arg) in args.into_iter().enumerate() {
+        regs[i] = arg;
+    }
+
+    loop {
+        match &func.body[step] {
+            BlockData::Assign(value, inst) => {
+                regs[*value] = match inst {
+                    Inst::Store(address, value) => {
+                        mem[*address] = regs[*value];
+                        return regs[*value];
+                    }
+                    Inst::Load(address) => mem[*address],
+                    Inst::Add(a, b) => regs[*a].add(regs[*b]),
+                    Inst::Sub(a, b) => regs[*a].sub(regs[*b]),
+                    Inst::Mul(a, b) => regs[*a].mul(regs[*b]),
+                    Inst::Div(a, b) => regs[*a].div(regs[*b]),
+                    Inst::Eq(a, b) => regs[*a].eq(regs[*b]),
+                    Inst::Ne(a, b) => regs[*a].ne(regs[*b]),
+                    Inst::Lt(a, b) => regs[*a].lt(regs[*b]),
+                    Inst::Le(a, b) => regs[*a].le(regs[*b]),
+                    Inst::Gt(a, b) => regs[*a].gt(regs[*b]),
+                    Inst::Ge(a, b) => regs[*a].ge(regs[*b]),
+                    Inst::Not(a) => regs[*a].not(),
+                    Inst::Neg(a) => regs[*a].neg(),
+                    Inst::Move(a) => regs[*a],
+                    Inst::Call(func_id_reg, param_regs) => {
+                        let args = param_regs.iter().map(|reg| regs[*reg]).collect();
+                        exec_ir(&funcs[*func_id_reg], funcs, mem, args)
+                    }
+                    Inst::Alloc(a) => {
+                        let start = mem.len();
+                        mem.extend((0..regs[*a].as_i32()).map(|_| Value::Unit));
+                        return Value::I32(start as i32);
+                    }
+                };
+                step += 1;
+            }
+            BlockData::Branch(cond, block) => {
+                if regs[*cond].as_bool() {
+                    step = *block
+                } else {
+                    step += 1;
+                }
+            }
+            BlockData::Consts(reg, value) => {
+                regs[*reg] = *value;
+                step += 1;
+            }
+            BlockData::JumpTo(block) => step = *block,
+            BlockData::Return(value) => {
+                return regs[*value];
+            }
         }
     }
 }

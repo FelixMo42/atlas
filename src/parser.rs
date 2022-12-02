@@ -186,11 +186,11 @@ fn parse_cmp(lex: &mut Lexer) -> Ast {
     }
 }
 
-pub fn parse_expr(lex: &mut Lexer) -> Ast {
+fn parse_expr(lex: &mut Lexer) -> Ast {
     return parse_cmp(lex);
 }
 
-pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Ast)> {
+fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Ast)> {
     if lex.next() != Token::Ident("fn") {
         return None;
     };
@@ -221,4 +221,16 @@ pub fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Ast)> {
     let body = parse_expr(lex);
 
     return Some((name.to_string(), params, body));
+}
+
+pub fn parse(src: &str) -> Vec<(String, Vec<String>, Ast)> {
+    let mut funcs = vec![];
+
+    let mut lex = Lexer::new(src);
+
+    while let Some((name, params, body)) = parse_func_def(&mut lex) {
+        funcs.push((name, params, body))
+    }
+
+    return funcs;
 }

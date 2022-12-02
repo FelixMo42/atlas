@@ -1,7 +1,8 @@
 use crate::ir::*;
-use crate::lexer::*;
 use crate::parser::*;
 use crate::value::*;
+
+use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct Module<'a> {
@@ -11,30 +12,19 @@ pub struct Module<'a> {
 
 impl<'a> Module<'a> {
     pub fn from_src(src: &str) -> Self {
+        let mut module = Module::default().add_std();
+
         // parse all the functions
-        let lex = &mut Lexer::new(src);
-        let mut funcs_ast = vec![];
-        while let Some(func) = parse_func_def(lex) {
-            funcs_ast.push(func)
-        }
-
-        let mut module = Module::default();
-
-        // load the standard library
-        module.add_std();
+        let funcs = parse(src);
 
         // register the functions in the scope
-        for i in 0..funcs_ast.len() {
-            module
-                .scope
-                .set(funcs_ast[i].0.clone(), module.funcs.len() + i);
+        for i in 0..funcs.len() {
+            module.scope.set(funcs[i].0.clone(), module.funcs.len() + i);
         }
 
         // turn the functions in to ir
-        for (name, params, ast) in funcs_ast {
-            module
-                .funcs
-                .push(Func::new(name, params, &ast, &module.scope));
+        for (name, params, ast) in funcs {
+            module.funcs.push(Func::new(&module, name, params, &ast));
         }
 
         return module;
@@ -51,31 +41,62 @@ impl<'a> Module<'a> {
 }
 
 impl<'a> Module<'a> {
-    fn add(&mut self, func: Func) {
+    fn add_func(mut self, func: Func) -> Self {
         self.scope.set(func.name.clone(), self.funcs.len());
         self.funcs.push(func);
+        return self;
     }
 
-    fn add_std(&mut self) {
-        self.add(Func {
-            name: "alloc".to_string(),
-            num_vars: 1,
-            body: vec![BlockData::Assign(0, Inst::Alloc(0)), BlockData::Return(0)],
-        });
+    fn add_std(self) -> Self {
+        return self
+            .add_func(Func {
+                name: "alloc".to_string(),
+                num_vars: 1,
+                body: vec![BlockData::Assign(0, Inst::Alloc(0)), BlockData::Return(0)],
+            })
+            .add_func(Func {
+                name: "store".to_string(),
+                num_vars: 2,
+                body: vec![
+                    BlockData::Assign(0, Inst::Store(0, 1)),
+                    BlockData::Return(0),
+                ],
+            })
+            .add_func(Func {
+                name: "load".to_string(),
+                num_vars: 1,
+                body: vec![BlockData::Assign(0, Inst::Load(0)), BlockData::Return(0)],
+            });
+    }
+}
 
-        self.add(Func {
-            name: "store".to_string(),
-            num_vars: 2,
-            body: vec![
-                BlockData::Assign(0, Inst::Store(0, 1)),
-                BlockData::Return(0),
-            ],
-        });
+#[derive(Default)]
+pub struct Scope<'a> {
+    vars: HashMap<String, usize>,
+    parent: Option<&'a Scope<'a>>,
+}
 
-        self.add(Func {
-            name: "load".to_string(),
-            num_vars: 1,
-            body: vec![BlockData::Assign(0, Inst::Load(0)), BlockData::Return(0)],
-        });
+impl<'a> Scope<'a> {
+    pub fn get(&self, name: &str) -> Option<usize> {
+        if let Some(value) = self.vars.get(name) {
+            return Some(*value);
+        } else if let Some(parent) = self.parent {
+            return parent.get(name);
+        } else {
+            return None;
+        }
+    }
+
+    pub fn set(&mut self, name: String, value: usize) {
+        self.vars.insert(name, value);
+    }
+}
+
+impl<'a> Scope<'a> {
+    pub fn child(&self) -> Scope {
+        return Scope {
+            vars: HashMap::new(),
+            parent: Some(self),
+        };
     }
 }
