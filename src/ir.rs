@@ -10,29 +10,31 @@ type Block = usize;
 pub struct Func {
     pub name: String,
     pub num_vars: usize,
+    pub return_type: Type,
     pub body: Vec<BlockData>,
 }
 
 impl Func {
-    pub fn new(module: &Module, name: String, params: Vec<String>, ast: &Ast) -> Func {
+    pub fn new(module: &Module, func_def: FuncDef) -> Func {
         let mut builder = IrBuilder {
             blocks: vec![],
-            num_vars: params.len(),
+            num_vars: func_def.params.len(),
         };
 
         let scope = &mut module.scope.child();
 
-        for (i, param) in params.into_iter().enumerate() {
+        for (i, param) in func_def.params.into_iter().enumerate() {
             scope.set(param, i);
         }
 
-        builder.add(ast, scope);
+        builder.add(&func_def.body, scope);
 
         builder.blocks.push(BlockData::Return(0));
 
         return Func {
-            name,
+            name: func_def.name,
             body: builder.blocks,
+            return_type: func_def.return_type,
             num_vars: builder.num_vars,
         };
     }

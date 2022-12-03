@@ -19,24 +19,30 @@ impl<'a> Module<'a> {
 
         // register the functions in the scope
         for i in 0..funcs.len() {
-            module.scope.set(funcs[i].0.clone(), module.funcs.len() + i);
+            module
+                .scope
+                .set(funcs[i].name.clone(), module.funcs.len() + i);
         }
 
         // turn the functions in to ir
-        for (name, params, ast) in funcs {
-            module.funcs.push(Func::new(&module, name, params, &ast));
+        for func_def in funcs {
+            module.funcs.push(Func::new(&module, func_def));
         }
 
         return module;
     }
 
     pub fn exec(&self, name: &str, args: Vec<Value>) -> Value {
-        if let Some(func_id) = self.scope.get(name) {
+        if let Some(func) = self.get(name) {
             let memory = &mut vec![];
-            return exec_ir(&self.funcs[func_id], &self.funcs, memory, args);
+            return exec_ir(func, &self.funcs, memory, args);
         } else {
             return Value::Err;
         }
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Func> {
+        self.scope.get(name).map(|func_id| &self.funcs[func_id])
     }
 }
 
@@ -52,11 +58,13 @@ impl<'a> Module<'a> {
             .add_func(Func {
                 name: "alloc".to_string(),
                 num_vars: 1,
+                return_type: Type::I32,
                 body: vec![BlockData::Assign(0, Inst::Alloc(0)), BlockData::Return(0)],
             })
             .add_func(Func {
                 name: "store".to_string(),
                 num_vars: 2,
+                return_type: Type::I32,
                 body: vec![
                     BlockData::Assign(0, Inst::Store(0, 1)),
                     BlockData::Return(0),
@@ -65,6 +73,7 @@ impl<'a> Module<'a> {
             .add_func(Func {
                 name: "load".to_string(),
                 num_vars: 1,
+                return_type: Type::I32,
                 body: vec![BlockData::Assign(0, Inst::Load(0)), BlockData::Return(0)],
             });
     }

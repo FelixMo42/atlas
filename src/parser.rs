@@ -1,4 +1,5 @@
 use crate::lexer::*;
+use crate::value::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ast {
@@ -190,19 +191,28 @@ fn parse_expr(lex: &mut Lexer) -> Ast {
     return parse_cmp(lex);
 }
 
-fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Ast)> {
+pub struct FuncDef {
+    pub name: String,
+    pub params: Vec<String>,
+    pub return_type: Type,
+    pub body: Ast,
+}
+
+fn parse_func_def(lex: &mut Lexer) -> Option<FuncDef> {
+    // parse function keywoard
     if lex.next() != Token::Ident("fn") {
         return None;
     };
 
+    // parse name
     let name = if let Token::Ident(name) = lex.next() {
         name.to_string()
     } else {
         return None;
     };
 
+    // parse paramaters
     lex.next(); // (
-
     let mut params = vec![];
     if !check(lex, Token::Close(')')) {
         loop {
@@ -218,18 +228,32 @@ fn parse_func_def(lex: &mut Lexer) -> Option<(String, Vec<String>, Ast)> {
         }
     }
 
+    // parse return type
+    let return_type = match lex.next() {
+        Token::Ident("I32") => Type::I32,
+        Token::Ident("F64") => Type::F64,
+        Token::Ident("Bool") => Type::Bool,
+        _ => return None,
+    };
+
+    // parse body
     let body = parse_expr(lex);
 
-    return Some((name.to_string(), params, body));
+    return Some(FuncDef {
+        name: name.to_string(),
+        params,
+        return_type,
+        body,
+    });
 }
 
-pub fn parse(src: &str) -> Vec<(String, Vec<String>, Ast)> {
+pub fn parse(src: &str) -> Vec<FuncDef> {
     let mut funcs = vec![];
 
     let mut lex = Lexer::new(src);
 
-    while let Some((name, params, body)) = parse_func_def(&mut lex) {
-        funcs.push((name, params, body))
+    while let Some(func_def) = parse_func_def(&mut lex) {
+        funcs.push(func_def)
     }
 
     return funcs;

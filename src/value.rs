@@ -128,3 +128,10 @@ impl Value {
         }
     }
 }
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Type {
+    I32,
+    F64,
+    Bool,
+}

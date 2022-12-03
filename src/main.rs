@@ -16,7 +16,7 @@ pub fn exec(src: &str) -> Value {
 
 /// evaluate an expression and returns the the value
 pub fn eval(src: &str) -> Value {
-    return exec(&format!("fn main() {{ return {} }}", src));
+    return exec(&format!("fn main() I32 {{ return {} }}", src));
 }
 
 #[cfg(test)]
@@ -24,11 +24,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_return_type() {
+        assert_eq!(
+            Module::from_src(
+                "
+                fn main() I32 {
+                    return 42
+                }
+                "
+            )
+            .get("main")
+            .map(|func| func.return_type),
+            Some(Type::I32)
+        );
+
+        assert_eq!(
+            Module::from_src(
+                "
+                fn main() F64 {
+                    return 42.0
+                }
+                "
+            )
+            .get("main")
+            .map(|func| func.return_type),
+            Some(Type::F64)
+        );
+    }
+
+    #[test]
     fn test_memory() {
         assert_eq!(
             exec(
                 "
-                fn main() {
+                fn main() I32 {
                     let address = alloc(100)
                     store(address, 42)
                     return load(address)
@@ -45,13 +74,13 @@ mod tests {
             exec(
                 "
                 // aofhawf
-                fn ret() {
+                fn ret() I32 {
                     // are //
                     return 42 // 23agr 3
                 }
 
                 // oy9y84gh
-                fn main() {
+                fn main() I32 {
                     // [0ug8y 48y ]
                     let x = ret() // oauyifg
                     // 8wy4ihg 
@@ -69,7 +98,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                fn main() {
+                fn main() I32 {
                     let x = 1
                     while x < 10 {
                         x = x + 1
@@ -87,7 +116,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                fn main() {
+                fn main() I32 {
                     let x = 1
                     x = x + 1
                     return x
@@ -99,7 +128,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                fn main() {
+                fn main() I32 {
                     let x = 1
                     if true {
                         x = x + 1
@@ -115,7 +144,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                fn main() {
+                fn main() I32 {
                     let x = 1
                     if true {
                         let x = 5
@@ -134,7 +163,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                fn main() {
+                fn main() I32 {
                     if true {
                         return 1
                     } else {
@@ -148,7 +177,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                fn main() {
+                fn main() I32 {
                     if false {
                         return 1
                     }
@@ -161,7 +190,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                fn main() {
+                fn main() I32 {
                     let x = 1
                     {
                         let x = 2
@@ -175,12 +204,12 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                fn bla() {
+                fn bla() I32 {
                     let x = 2
                     return 0
                 }
 
-                fn main() {
+                fn main() I32 {
                     let x = 1
                     bla()
                     return x
@@ -196,7 +225,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                    fn main() {
+                    fn main() I32 {
                         let x = 5
                         return 40 + x
                     }
@@ -208,7 +237,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                    fn main() {
+                    fn main() I32 {
                         let x = 5
                         let x = x + 10
                         return x
@@ -224,7 +253,7 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                    fn main() {
+                    fn main() I32 {
                         return 40 + 2
                     }
                 "
@@ -235,11 +264,11 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                    fn forty() {
+                    fn forty() I32 {
                         return 20 * 2
                     }
 
-                    fn main() {
+                    fn main() I32 {
                         return forty() + 2
                     }
                 "
@@ -250,11 +279,11 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                    fn add(a, b) {
+                    fn add(a, b) I32 {
                         return a + b
                     }
 
-                    fn main() {
+                    fn main() I32 {
                         return add(1, 2)
                     }
                 "
@@ -265,14 +294,14 @@ mod tests {
         assert_eq!(
             exec(
                 "
-                    fn fib(num) {
+                    fn fib(num) I32 {
                         return
                             if (num == 1) 1
                             else if (num == 0) 0
                             else fib(num - 1) + fib(num - 2)
                     }
 
-                    fn main() {
+                    fn main() I32 {
                         return fib(7)
                     }
                 "
