@@ -12,7 +12,7 @@ pub struct Module<'a> {
 
 impl<'a> Module<'a> {
     pub fn from_src(src: &str) -> Self {
-        let mut module = Module::default().add_std();
+        let mut module = Module::default();
 
         // parse all the functions
         let funcs = parse(src);

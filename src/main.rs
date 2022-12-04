@@ -4,6 +4,7 @@ mod module;
 mod parser;
 mod value;
 
+use crate::ir::*;
 use crate::module::*;
 use crate::value::*;
 
@@ -22,7 +23,9 @@ pub fn eval(src: &str) -> Value {
 }
 
 pub fn exec_wasm<T: wasmtime::WasmResults>(src: &str) -> T {
-    let wat = compile(src);
+    let wat = compile(src).unwrap();
+
+    println!("{}", std::str::from_utf8(&wat).unwrap());
 
     let engine = wasmtime::Engine::default();
     let module = wasmtime::Module::new(&engine, wat).unwrap();
@@ -38,7 +41,7 @@ pub fn exec_wasm<T: wasmtime::WasmResults>(src: &str) -> T {
 }
 
 /// transpile atlas to wat file
-pub fn compile(src: &str) -> Vec<u8> {
+pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
     fn rep(t: Type) -> String {
         match t {
             Type::F64 => "f64",
@@ -51,19 +54,39 @@ pub fn compile(src: &str) -> Vec<u8> {
     let module = Module::from_src(src);
     let mut b = Vec::new();
 
-    writeln!(b, "(module");
+    writeln!(b, "(module")?;
 
     for (i, func) in module.funcs.iter().enumerate() {
-        writeln!(b, "\t(func ${}", i);
-        writeln!(b, "\t\t(export \"{}\")", func.name);
-        writeln!(b, "\t\t(result {})", rep(func.return_type));
-        writeln!(b, "\t\ti32.const 42");
-        writeln!(b, "\t)");
+        writeln!(b, "\t(func ${}", i)?;
+        writeln!(b, "\t\t(export \"{}\")", func.name)?;
+        writeln!(b, "\t\t(result {})", rep(func.return_type))?;
+
+        for inst in &func.body {
+            match inst {
+                ir::BlockData::Consts(_, value) => match value {
+                    Value::F64(v) => writeln!(b, "\t\tf64.const {}", v)?,
+                    Value::I32(v) => writeln!(b, "\t\ti32.const {}", v)?,
+                    _ => {}
+                },
+                ir::BlockData::Assign(_, inst) => match inst {
+                    Inst::Neg(..) => {
+                        writeln!(b, "\t\ti32.const -1")?;
+                        writeln!(b, "\t\ti32.xor")?;
+                        writeln!(b, "\t\ti32.const 1")?;
+                        writeln!(b, "\t\ti32.add")?;
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+
+        writeln!(b, "\t)")?;
     }
 
-    writeln!(b, ")");
+    writeln!(b, ")")?;
 
-    return b;
+    return Ok(b);
 }
 
 #[cfg(test)]
@@ -71,7 +94,32 @@ mod test_wasm {
     use crate::exec_wasm;
 
     #[test]
-    fn test_int() {
+    fn test_negative_int() {
+        assert_eq!(
+            exec_wasm::<i32>(
+                "
+                fn main() I32 {
+                    return -42
+                }
+                "
+            ),
+            -42
+        );
+    }
+
+    #[test]
+    fn test_numbers() {
+        assert_eq!(
+            exec_wasm::<i32>(
+                "
+                fn main() I32 {
+                    return 0
+                }
+                "
+            ),
+            0
+        );
+
         assert_eq!(
             exec_wasm::<i32>(
                 "
@@ -81,7 +129,18 @@ mod test_wasm {
                 "
             ),
             42
-        )
+        );
+
+        assert_eq!(
+            exec_wasm::<f64>(
+                "
+                fn main() F64 {
+                    return 12.3
+                }
+                "
+            ),
+            12.3
+        );
     }
 }
 
