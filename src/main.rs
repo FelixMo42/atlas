@@ -90,349 +90,227 @@ pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
 }
 
 #[cfg(test)]
+#[rustfmt::skip]
 mod test_wasm {
     use crate::exec_wasm;
 
     #[test]
     fn test_negative_int() {
-        assert_eq!(
-            exec_wasm::<i32>(
-                "
-                fn main() I32 {
-                    return -42
-                }
-                "
-            ),
-            -42
-        );
+        assert_eq!(exec_wasm::<i32>("
+            fn main() I32 {
+                return -42
+            }
+        "), -42);
     }
 
     #[test]
     fn test_numbers() {
-        assert_eq!(
-            exec_wasm::<i32>(
-                "
-                fn main() I32 {
-                    return 0
-                }
-                "
-            ),
-            0
-        );
+        assert_eq!(exec_wasm::<i32>("
+            fn main() I32 {
+                return 0
+            }
+        "), 0);
 
-        assert_eq!(
-            exec_wasm::<i32>(
-                "
-                fn main() I32 {
-                    return 42
-                }
-                "
-            ),
-            42
-        );
+        assert_eq!(exec_wasm::<i32>("
+            fn main() I32 {
+                return 42
+            }
+        "), 42);
 
-        assert_eq!(
-            exec_wasm::<f64>(
-                "
-                fn main() F64 {
-                    return 12.3
-                }
-                "
-            ),
-            12.3
-        );
+        assert_eq!(exec_wasm::<f64>("
+            fn main() F64 {
+                return 12.3
+            }
+        "), 12.3);
     }
 }
 
 #[cfg(test)]
+#[rustfmt::skip]
 mod tests_ir {
     use super::*;
 
     #[test]
-    fn test_return_type() {
-        assert_eq!(
-            Module::from_src(
-                "
-                fn main() I32 {
-                    return 42
-                }
-                "
-            )
-            .get("main")
-            .map(|func| func.return_type),
-            Some(Type::I32)
-        );
-
-        assert_eq!(
-            Module::from_src(
-                "
-                fn main() F64 {
-                    return 42.0
-                }
-                "
-            )
-            .get("main")
-            .map(|func| func.return_type),
-            Some(Type::F64)
-        );
-    }
-
-    #[test]
     fn test_memory() {
-        assert_eq!(
-            exec(
-                "
-                fn main() I32 {
-                    let address = alloc(100)
-                    store(address, 42)
-                    return load(address)
-                }
-                "
-            ),
-            Value::I32(42)
-        )
+        assert_eq!(exec("
+            fn main() I32 {
+                let address = alloc(100)
+                store(address, 42)
+                return load(address)
+            }
+        "), Value::I32(42))
     }
 
     #[test]
     fn test_comment() {
-        assert_eq!(
-            exec(
-                "
-                // aofhawf
-                fn ret() I32 {
-                    // are //
-                    return 42 // 23agr 3
-                }
+        assert_eq!(exec("
+            // aofhawf
+            fn ret() I32 {
+                // are //
+                return 42 // 23agr 3
+            }
 
-                // oy9y84gh
-                fn main() I32 {
-                    // [0ug8y 48y ]
-                    let x = ret() // oauyifg
-                    // 8wy4ihg 
-                    return x // ouahf
-                }
-                // a;oehf
-                "
-            ),
-            Value::I32(42)
-        )
+            // oy9y84gh
+            fn main() I32 {
+                // [0ug8y 48y ]
+                let x = ret() // oauyifg
+                // 8wy4ihg 
+                return x // ouahf
+            }
+            // a;oehf
+        "), Value::I32(42))
     }
 
     #[test]
     fn test_loop() {
-        assert_eq!(
-            exec(
-                "
-                fn main() I32 {
-                    let x = 1
-                    while x < 10 {
-                        x = x + 1
-                    }
-                    return x
+        assert_eq!(exec("
+            fn main() I32 {
+                let x = 1
+                while x < 10 {
+                    x = x + 1
                 }
-                "
-            ),
-            Value::I32(10)
-        );
+                return x
+            }
+        "), Value::I32(10));
     }
 
     #[test]
     fn test_redefine_variable() {
-        assert_eq!(
-            exec(
-                "
-                fn main() I32 {
-                    let x = 1
+        assert_eq!(exec("
+            fn main() I32 {
+                let x = 1
+                x = x + 1
+                return x
+            }
+        "), Value::I32(2));
+
+        assert_eq!(exec("
+            fn main() I32 {
+                let x = 1
+                if true {
                     x = x + 1
-                    return x
+                } else {
+                    x = x + 2
                 }
-                "
-            ),
-            Value::I32(2)
-        );
-        assert_eq!(
-            exec(
-                "
-                fn main() I32 {
-                    let x = 1
-                    if true {
-                        x = x + 1
-                    } else {
-                        x = x + 2
-                    }
-                    return x
+                return x
+            }
+        "), Value::I32(2));
+
+        assert_eq!(exec("
+            fn main() I32 {
+                let x = 1
+                if true {
+                    let x = 5
+                    x = x + 1
                 }
-                "
-            ),
-            Value::I32(2)
-        );
-        assert_eq!(
-            exec(
-                "
-                fn main() I32 {
-                    let x = 1
-                    if true {
-                        let x = 5
-                        x = x + 1
-                    }
-                    return x
-                }
-                "
-            ),
-            Value::I32(1)
-        );
+                return x
+            }
+        "), Value::I32(1));
     }
 
     #[test]
     fn test_branch_flow() {
-        assert_eq!(
-            exec(
-                "
-                fn main() I32 {
-                    if true {
-                        return 1
-                    } else {
-                        return 2
-                    }
-                }
-                "
-            ),
-            Value::I32(1)
-        );
-        assert_eq!(
-            exec(
-                "
-                fn main() I32 {
-                    if false {
-                        return 1
-                    }
+        assert_eq!(exec("
+            fn main() I32 {
+                if true {
+                    return 1
+                } else {
                     return 2
                 }
-                "
-            ),
-            Value::I32(2)
-        );
-        assert_eq!(
-            exec(
-                "
-                fn main() I32 {
-                    let x = 1
-                    {
-                        let x = 2
-                    }
-                    return x
+            }
+        "), Value::I32(1));
+    
+        assert_eq!(exec("
+            fn main() I32 {
+                if false {
+                    return 1
                 }
-                "
-            ),
-            Value::I32(1)
-        );
-        assert_eq!(
-            exec(
-                "
-                fn bla() I32 {
-                    let x = 2
-                    return 0
-                }
+                return 2
+            }
+        "), Value::I32(2));
 
-                fn main() I32 {
-                    let x = 1
-                    bla()
-                    return x
+        assert_eq!(exec("
+            fn main() I32 {
+                let x = 1
+                {
+                    let x = 2
                 }
-                "
-            ),
-            Value::I32(1)
-        );
+                return x
+            }
+        "), Value::I32(1));
+
+        assert_eq!(exec("
+            fn bla() I32 {
+                let x = 2
+                return 0
+            }
+
+            fn main() I32 {
+                let x = 1
+                bla()
+                return x
+            }
+        "), Value::I32(1));
     }
 
     #[test]
     fn test_variables() {
-        assert_eq!(
-            exec(
-                "
-                    fn main() I32 {
-                        let x = 5
-                        return 40 + x
-                    }
-                "
-            ),
-            Value::I32(45)
-        );
+        assert_eq!(exec("
+            fn main() I32 {
+                let x = 5
+                return 40 + x
+            }
+        "), Value::I32(45));
 
-        assert_eq!(
-            exec(
-                "
-                    fn main() I32 {
-                        let x = 5
-                        let x = x + 10
-                        return x
-                    }
-                "
-            ),
-            Value::I32(15)
-        );
+        assert_eq!(exec("
+            fn main() I32 {
+                let x = 5
+                let x = x + 10
+                return x
+            }
+        "), Value::I32(15));
     }
 
     #[test]
     fn test_func_def() {
-        assert_eq!(
-            exec(
-                "
-                    fn main() I32 {
-                        return 40 + 2
-                    }
-                "
-            ),
-            Value::I32(42)
-        );
+        assert_eq!(exec("
+            fn main() I32 {
+                return 40 + 2
+            }
+        "), Value::I32(42));
 
-        assert_eq!(
-            exec(
-                "
-                    fn forty() I32 {
-                        return 20 * 2
-                    }
+        assert_eq!(exec("
+            fn forty() I32 {
+                return 20 * 2
+            }
 
-                    fn main() I32 {
-                        return forty() + 2
-                    }
-                "
-            ),
-            Value::I32(42)
-        );
+            fn main() I32 {
+                return forty() + 2
+            }
+        "), Value::I32(42));
 
-        assert_eq!(
-            exec(
-                "
-                    fn add(a, b) I32 {
-                        return a + b
-                    }
+        assert_eq!(exec("
+            fn add(a, b) I32 {
+                return a + b
+            }
 
-                    fn main() I32 {
-                        return add(1, 2)
-                    }
-                "
-            ),
-            Value::I32(3)
-        );
+            fn main() I32 {
+                return add(1, 2)
+            }
+        "), Value::I32(3));
 
-        assert_eq!(
-            exec(
-                "
-                    fn fib(num) I32 {
-                        return
-                            if (num == 1) 1
-                            else if (num == 0) 0
-                            else fib(num - 1) + fib(num - 2)
-                    }
+        assert_eq!(exec("
+            fn fib(num) I32 {
+                return
+                    if (num == 1) 1
+                    else if (num == 0) 0
+                    else fib(num - 1) + fib(num - 2)
+            }
 
-                    fn main() I32 {
-                        return fib(7)
-                    }
-                "
-            ),
-            Value::I32(13)
-        );
+            fn main() I32 {
+                return fib(7)
+            }
+        "), Value::I32(13));
     }
 
     #[test]
