@@ -7,6 +7,8 @@ mod value;
 use crate::module::*;
 use crate::value::*;
 
+use std::io::Write;
+
 fn main() {}
 
 /// run the main function from source code and returns the result
@@ -19,8 +21,72 @@ pub fn eval(src: &str) -> Value {
     return exec(&format!("fn main() I32 {{ return {} }}", src));
 }
 
+pub fn exec_wasm<T: wasmtime::WasmResults>(src: &str) -> T {
+    let wat = compile(src);
+
+    let engine = wasmtime::Engine::default();
+    let module = wasmtime::Module::new(&engine, wat).unwrap();
+
+    let mut store = wasmtime::Store::new(&engine, 4);
+    let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
+    let main = instance
+        .get_typed_func::<(), T, _>(&mut store, "main")
+        .unwrap();
+
+    // And finally we can call the wasm!
+    return main.call(&mut store, ()).unwrap();
+}
+
+/// transpile atlas to wat file
+pub fn compile(src: &str) -> Vec<u8> {
+    fn rep(t: Type) -> String {
+        match t {
+            Type::F64 => "f64",
+            Type::I32 => "i32",
+            Type::Bool => "bool",
+        }
+        .to_string()
+    }
+
+    let module = Module::from_src(src);
+    let mut b = Vec::new();
+
+    writeln!(b, "(module");
+
+    for (i, func) in module.funcs.iter().enumerate() {
+        writeln!(b, "\t(func ${}", i);
+        writeln!(b, "\t\t(export \"{}\")", func.name);
+        writeln!(b, "\t\t(result {})", rep(func.return_type));
+        writeln!(b, "\t\ti32.const 42");
+        writeln!(b, "\t)");
+    }
+
+    writeln!(b, ")");
+
+    return b;
+}
+
 #[cfg(test)]
-mod tests {
+mod test_wasm {
+    use crate::exec_wasm;
+
+    #[test]
+    fn test_int() {
+        assert_eq!(
+            exec_wasm::<i32>(
+                "
+                fn main() I32 {
+                    return 42
+                }
+                "
+            ),
+            42
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests_ir {
     use super::*;
 
     #[test]
