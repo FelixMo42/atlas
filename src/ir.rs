@@ -83,7 +83,7 @@ impl Inst {
             | Inst::Ge(..)
             | Inst::Gt(..) => Type::Bool,
 
-            Inst::Call(id, ..) => Type::Bool, // TODO: make this return correct type
+            Inst::Call(..) => Type::Bool, // TODO: make this return correct type
             _ => unimplemented!(),
         }
     }

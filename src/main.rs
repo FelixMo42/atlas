@@ -3,120 +3,31 @@ mod lexer;
 mod module;
 mod parser;
 mod value;
+mod wasm;
 
-use crate::ir::*;
-use crate::module::*;
-use crate::value::*;
-
-use std::io::Write;
+pub mod core {
+    pub use crate::module::Module;
+    pub use crate::wasm::exec_wasm;
+}
 
 fn main() {}
-
-/// run the main function from source code and returns the result
-pub fn exec(src: &str) -> Value {
-    Module::from_src(src).exec("main", vec![])
-}
-
-/// evaluate an expression and returns the the value
-pub fn eval(src: &str) -> Value {
-    return exec(&format!("fn main() I32 {{ return {} }}", src));
-}
-
-pub fn exec_wasm<T: wasmtime::WasmResults>(src: &str) -> T {
-    let wat = compile(src).unwrap();
-
-    println!("{}", std::str::from_utf8(&wat).unwrap());
-
-    let engine = wasmtime::Engine::default();
-    let module = wasmtime::Module::new(&engine, wat).unwrap();
-
-    let mut store = wasmtime::Store::new(&engine, 4);
-    let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
-    let main = instance
-        .get_typed_func::<(), T, _>(&mut store, "main")
-        .unwrap();
-
-    // And finally we can call the wasm!
-    return main.call(&mut store, ()).unwrap();
-}
-
-/// transpile atlas to wat file
-pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
-    fn rep(t: Type) -> String {
-        match t {
-            Type::F64 => "f64",
-            Type::I32 => "i32",
-            Type::Bool => "bool",
-        }
-        .to_string()
-    }
-
-    let module = Module::from_src(src);
-    let mut b = Vec::new();
-
-    writeln!(b, "(module")?;
-
-    fn add(b: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<()> {
-        match &func.ir.blocks[block] {
-            ir::BlockData::Consts(_, value) => match value {
-                Value::F64(v) => writeln!(b, "\t\tf64.const {}", v)?,
-                Value::I32(v) => writeln!(b, "\t\ti32.const {}", v)?,
-                _ => {}
-            },
-            ir::BlockData::Assign(_, inst) => match inst {
-                Inst::Neg(val) => match func.ir.var_type[*val] {
-                    Type::I32 => {
-                        writeln!(b, "\t\ti32.const 0")?;
-                        add(b, func, func.ir.var_decl[*val])?;
-                        writeln!(b, "\t\ti32.sub")?;
-                    }
-                    Type::F64 => {
-                        add(b, func, func.ir.var_decl[*val])?;
-                        writeln!(b, "\t\tf64.neg")?;
-                    }
-                    _ => unimplemented!(),
-                },
-                _ => {}
-            },
-            _ => {}
-        };
-
-        return Ok(());
-    }
-
-    for (i, func) in module.funcs.iter().enumerate() {
-        writeln!(b, "\t(func ${}", i)?;
-        writeln!(b, "\t\t(export \"{}\")", func.name)?;
-        writeln!(b, "\t\t(result {})", rep(func.return_type))?;
-
-        if let Some(BlockData::Return(var)) = func.ir.blocks.last() {
-            let decl = func.ir.var_decl[*var];
-            add(&mut b, func, decl)?;
-        } else {
-            panic!("expeted function to end with return statment!")
-        }
-
-        writeln!(b, "\t)")?;
-    }
-
-    writeln!(b, ")")?;
-
-    return Ok(b);
-}
 
 #[cfg(test)]
 #[rustfmt::skip]
 mod tests_ir {
     use super::*;
+    
+    use crate::module::*;
+    use crate::value::*;
 
     fn test_interpreter(src: &str, value: Value) {
-        assert_eq!(exec(src), value);
+        assert_eq!(Module::from_src(src).exec("main", vec![]), value);
     }
 
     fn test_wasm(src: &str, value: Value) {
         match value {
-            Value::F64(val) => assert_eq!(exec_wasm::<f64>(src), val),
-            Value::I32(val) => assert_eq!(exec_wasm::<i32>(src), val),
+            Value::F64(val) => assert_eq!(wasm::exec_wasm::<f64>(src), val),
+            Value::I32(val) => assert_eq!(wasm::exec_wasm::<i32>(src), val),
             _ => {}
         }
     }
@@ -156,6 +67,7 @@ mod tests_ir {
             fn ret() I32 {
                 // are //
                 return 42 // 23agr 3
+                // nbu75 hgy
             }
 
             // oy9y84gh
@@ -164,6 +76,7 @@ mod tests_ir {
                 let x = ret() // oauyifg
                 // 8wy4ihg 
                 return x // ouahf
+                // yrdfog5
             }
             // a;oehf
         ", Value::I32(42))
@@ -336,7 +249,6 @@ mod tests_ir {
         test_eval("true", Value::Bool(true));
         test_eval("false", Value::Bool(false));
         test_eval("12 == 12", Value::Bool(true));
-        test_eval("12 == 12.0", Value::Err);
         test_eval("12 == 12 == true", Value::Bool(true));
         test_eval("8 + 4 == 10 + 2", Value::Bool(true));
     }
