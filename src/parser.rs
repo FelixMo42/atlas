@@ -193,9 +193,38 @@ fn parse_expr(lex: &mut Lexer) -> Ast {
 
 pub struct FuncDef {
     pub name: String,
-    pub params: Vec<String>,
+    pub params: Vec<Param>,
     pub return_type: Type,
     pub body: Ast,
+}
+
+pub struct Param {
+    pub name: String,
+    pub param_type: Type,
+}
+
+fn parse_type(lex: &mut Lexer) -> Type {
+    match lex.next() {
+        Token::Ident("I32") => Type::I32,
+        Token::Ident("F64") => Type::F64,
+        Token::Ident("Bool") => Type::Bool,
+        _ => unimplemented!(),
+    }
+}
+
+fn parse_param(lex: &mut Lexer) -> Param {
+    let name = if let Token::Ident(name) = lex.next() {
+        name.to_string()
+    } else {
+        unimplemented!()
+    };
+
+    lex.next(); // :
+
+    return Param {
+        name,
+        param_type: parse_type(lex),
+    };
 }
 
 fn parse_func_def(lex: &mut Lexer) -> Option<FuncDef> {
@@ -216,11 +245,7 @@ fn parse_func_def(lex: &mut Lexer) -> Option<FuncDef> {
     let mut params = vec![];
     if !check(lex, Token::Close(')')) {
         loop {
-            if let Token::Ident(name) = lex.next() {
-                params.push(name.to_string());
-            } else {
-                return None;
-            }
+            params.push(parse_param(lex));
 
             if lex.next() == Token::Close(')') {
                 break;

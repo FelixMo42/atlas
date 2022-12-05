@@ -56,29 +56,44 @@ pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
 
     writeln!(b, "(module")?;
 
+    fn add(b: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<()> {
+        match &func.ir.blocks[block] {
+            ir::BlockData::Consts(_, value) => match value {
+                Value::F64(v) => writeln!(b, "\t\tf64.const {}", v)?,
+                Value::I32(v) => writeln!(b, "\t\ti32.const {}", v)?,
+                _ => {}
+            },
+            ir::BlockData::Assign(_, inst) => match inst {
+                Inst::Neg(val) => match func.ir.var_type[*val] {
+                    Type::I32 => {
+                        writeln!(b, "\t\ti32.const 0")?;
+                        add(b, func, func.ir.var_decl[*val])?;
+                        writeln!(b, "\t\ti32.sub")?;
+                    }
+                    Type::F64 => {
+                        add(b, func, func.ir.var_decl[*val])?;
+                        writeln!(b, "\t\tf64.neg")?;
+                    }
+                    _ => unimplemented!(),
+                },
+                _ => {}
+            },
+            _ => {}
+        };
+
+        return Ok(());
+    }
+
     for (i, func) in module.funcs.iter().enumerate() {
         writeln!(b, "\t(func ${}", i)?;
         writeln!(b, "\t\t(export \"{}\")", func.name)?;
         writeln!(b, "\t\t(result {})", rep(func.return_type))?;
 
-        for inst in &func.body {
-            match inst {
-                ir::BlockData::Consts(_, value) => match value {
-                    Value::F64(v) => writeln!(b, "\t\tf64.const {}", v)?,
-                    Value::I32(v) => writeln!(b, "\t\ti32.const {}", v)?,
-                    _ => {}
-                },
-                ir::BlockData::Assign(_, inst) => match inst {
-                    Inst::Neg(..) => {
-                        writeln!(b, "\t\ti32.const -1")?;
-                        writeln!(b, "\t\ti32.xor")?;
-                        writeln!(b, "\t\ti32.const 1")?;
-                        writeln!(b, "\t\ti32.add")?;
-                    }
-                    _ => {}
-                },
-                _ => {}
-            }
+        if let Some(BlockData::Return(var)) = func.ir.blocks.last() {
+            let decl = func.ir.var_decl[*var];
+            add(&mut b, func, decl)?;
+        } else {
+            panic!("expeted function to end with return statment!")
         }
 
         writeln!(b, "\t)")?;
@@ -101,6 +116,12 @@ mod test_wasm {
                 return -42
             }
         "), -42);
+
+        assert_eq!(exec_wasm::<f64>("
+            fn main() F64 {
+                return -42.0
+            }
+        "), -42.0);
     }
 
     #[test]
@@ -131,6 +152,7 @@ mod tests_ir {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_memory() {
         assert_eq!(exec("
             fn main() I32 {
@@ -290,7 +312,7 @@ mod tests_ir {
         "), Value::I32(42));
 
         assert_eq!(exec("
-            fn add(a, b) I32 {
+            fn add(a: I32, b: I32) I32 {
                 return a + b
             }
 
@@ -300,7 +322,7 @@ mod tests_ir {
         "), Value::I32(3));
 
         assert_eq!(exec("
-            fn fib(num) I32 {
+            fn fib(num: I32) I32 {
                 return
                     if (num == 1) 1
                     else if (num == 0) 0

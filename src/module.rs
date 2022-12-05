@@ -46,39 +46,6 @@ impl<'a> Module<'a> {
     }
 }
 
-impl<'a> Module<'a> {
-    fn add_func(mut self, func: Func) -> Self {
-        self.scope.set(func.name.clone(), self.funcs.len());
-        self.funcs.push(func);
-        return self;
-    }
-
-    fn add_std(self) -> Self {
-        return self
-            .add_func(Func {
-                name: "alloc".to_string(),
-                num_vars: 1,
-                return_type: Type::I32,
-                body: vec![BlockData::Assign(0, Inst::Alloc(0)), BlockData::Return(0)],
-            })
-            .add_func(Func {
-                name: "store".to_string(),
-                num_vars: 2,
-                return_type: Type::I32,
-                body: vec![
-                    BlockData::Assign(0, Inst::Store(0, 1)),
-                    BlockData::Return(0),
-                ],
-            })
-            .add_func(Func {
-                name: "load".to_string(),
-                num_vars: 1,
-                return_type: Type::I32,
-                body: vec![BlockData::Assign(0, Inst::Load(0)), BlockData::Return(0)],
-            });
-    }
-}
-
 #[derive(Default)]
 pub struct Scope<'a> {
     vars: HashMap<String, usize>,

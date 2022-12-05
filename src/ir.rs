@@ -9,33 +9,28 @@ type Block = usize;
 #[derive(Debug)]
 pub struct Func {
     pub name: String,
-    pub num_vars: usize,
     pub return_type: Type,
-    pub body: Vec<BlockData>,
+    pub ir: IrBuilder,
 }
 
 impl Func {
     pub fn new(module: &Module, func_def: FuncDef) -> Func {
-        let mut builder = IrBuilder {
-            blocks: vec![],
-            num_vars: func_def.params.len(),
-        };
+        let mut ir = IrBuilder::new(&func_def.params);
 
         let scope = &mut module.scope.child();
 
         for (i, param) in func_def.params.into_iter().enumerate() {
-            scope.set(param, i);
+            scope.set(param.name, i);
+            ir.var_decl.push(0); // TODO: !!
+            ir.var_type.push(param.param_type);
         }
 
-        builder.add(&func_def.body, scope);
-
-        builder.blocks.push(BlockData::Return(0));
+        ir.add(&func_def.body, scope);
 
         return Func {
             name: func_def.name,
-            body: builder.blocks,
             return_type: func_def.return_type,
-            num_vars: builder.num_vars,
+            ir,
         };
     }
 }
@@ -70,6 +65,30 @@ pub enum Inst {
     Load(Reg),
 }
 
+impl Inst {
+    fn get_type(&self, ir: &IrBuilder) -> Type {
+        match self {
+            Inst::Add(val, ..)
+            | Inst::Sub(val, ..)
+            | Inst::Div(val, ..)
+            | Inst::Mul(val, ..)
+            | Inst::Neg(val, ..)
+            | Inst::Move(val) => ir.var_type[*val],
+
+            Inst::Not(..)
+            | Inst::Eq(..)
+            | Inst::Ne(..)
+            | Inst::Le(..)
+            | Inst::Lt(..)
+            | Inst::Ge(..)
+            | Inst::Gt(..) => Type::Bool,
+
+            Inst::Call(id, ..) => Type::Bool, // TODO: make this return correct type
+            _ => unimplemented!(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum BlockData {
     Assign(Reg, Inst),
@@ -79,25 +98,40 @@ pub enum BlockData {
     Return(Reg),
 }
 
-struct IrBuilder {
-    blocks: Vec<BlockData>,
-    num_vars: usize,
+#[derive(Debug)]
+pub struct IrBuilder {
+    pub blocks: Vec<BlockData>,
+    pub num_vars: usize,
+    pub var_decl: Vec<usize>,
+    pub var_type: Vec<Type>,
 }
 
 impl IrBuilder {
+    fn new(params: &Vec<Param>) -> Self {
+        return IrBuilder {
+            blocks: vec![],
+            num_vars: params.len(),
+            var_decl: vec![],
+            var_type: vec![],
+        };
+    }
+
     fn new_var(&mut self) -> Reg {
+        self.var_decl.push(self.next_block());
         self.num_vars += 1;
         return self.num_vars - 1;
     }
 
     fn add_inst(&mut self, inst: Inst) -> usize {
         let reg = self.new_var();
+        self.var_type.push(inst.get_type(self));
         self.blocks.push(BlockData::Assign(reg, inst));
         return reg;
     }
 
     fn add_consts(&mut self, value: Value) -> usize {
         let reg = self.new_var();
+        self.var_type.push(value.get_type());
         self.blocks.push(BlockData::Consts(reg, value));
         return reg;
     }
@@ -240,14 +274,14 @@ impl IrBuilder {
 
 pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<Value>) -> Value {
     let mut step = 0;
-    let mut regs: Vec<Value> = vec![Value::Unit; func.num_vars];
+    let mut regs: Vec<Value> = vec![Value::Unit; func.ir.num_vars];
 
     for (i, arg) in args.into_iter().enumerate() {
         regs[i] = arg;
     }
 
     loop {
-        match &func.body[step] {
+        match &func.ir.blocks[step] {
             BlockData::Assign(value, inst) => {
                 regs[*value] = match inst {
                     Inst::Store(address, value) => {

@@ -129,6 +129,18 @@ impl Value {
     }
 }
 
+impl Value {
+    pub fn get_type(&self) -> Type {
+        match self {
+            Value::I32(..) => Type::I32,
+            Value::F64(..) => Type::F64,
+            Value::Bool(..) => Type::Bool,
+            Value::Unit => unimplemented!(),
+            Value::Err => unimplemented!(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Type {
     I32,
