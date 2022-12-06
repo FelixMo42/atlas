@@ -28,6 +28,8 @@ mod tests_ir {
         match value {
             Value::F64(val) => assert_eq!(wasm::exec_wasm::<f64>(src), val),
             Value::I32(val) => assert_eq!(wasm::exec_wasm::<i32>(src), val),
+            Value::Bool(true) => assert_eq!(wasm::exec_wasm::<i32>(src), 1),
+            Value::Bool(false) => assert_eq!(wasm::exec_wasm::<i32>(src), 0),
             _ => {}
         }
     }
@@ -108,10 +110,8 @@ mod tests_ir {
         test("
             fn main() I32 {
                 let x = 1
-                if true {
+                {
                     x = x + 1
-                } else {
-                    x = x + 2
                 }
                 return x
             }
@@ -120,7 +120,7 @@ mod tests_ir {
         test("
             fn main() I32 {
                 let x = 1
-                if true {
+                {
                     let x = 5
                     x = x + 1
                 }
@@ -239,7 +239,6 @@ mod tests_ir {
         test_eval("if true 1 else 2", Value::I32(1));
         test_eval("1 + if true 1 else 2", Value::I32(2));
         test_eval("if true 1 else 2 + 1", Value::I32(1));
-        test_eval("if false 1 else 2 + 1", Value::I32(3));
         test_eval("if (false) 1 else 2", Value::I32(2));
         test_eval("if (false) 1 else if (false) 2 else 3", Value::I32(3));
     }
