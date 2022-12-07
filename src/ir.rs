@@ -6,6 +6,8 @@ type Var = usize;
 type FuncId = usize;
 type Block = usize;
 
+const NO_VALUE: Var = usize::MAX;
+
 #[derive(Debug)]
 pub struct Func {
     pub name: String,
@@ -20,7 +22,7 @@ impl Func {
         let scope = &mut module.scope.child();
 
         for (i, param) in func_def.params.into_iter().enumerate() {
-            scope.set(param.name, i);
+            scope.declair(param.name, i);
             ir.var_decl.push(0); // TODO: !!
             ir.var_type.push(param.param_type);
         }
@@ -32,6 +34,12 @@ impl Func {
             return_type: func_def.return_type,
             ir,
         };
+    }
+
+    pub fn log(&self) {
+        println!("function {} ():", self.name);
+        self.ir.log();
+        println!();
     }
 }
 
@@ -70,33 +78,9 @@ pub enum Inst {
 
     // control flow
     Branch(Var, (Block, Block)),
-    JumpTo(Block, Var),
+    JumpTo(Block, Vec<Var>),
     Return(Var),
 }
-
-// impl Inst {
-//     fn get_type(&self, ir: &Blocks) -> Type {
-//         match self {
-//             Inst::Add(val, ..)
-//             | Inst::Sub(val, ..)
-//             | Inst::Div(val, ..)
-//             | Inst::Mul(val, ..)
-//             | Inst::Neg(val, ..)
-//             | Inst::Move(val) => ir.var_type[*val],
-
-//             Inst::Not(..)
-//             | Inst::Eq(..)
-//             | Inst::Ne(..)
-//             | Inst::Le(..)
-//             | Inst::Lt(..)
-//             | Inst::Ge(..)
-//             | Inst::Gt(..) => Type::Bool,
-
-//             Inst::Call(..) => Type::Bool, // TODO: make this return correct type
-//             _ => unimplemented!(),
-//         }
-//     }
-// }
 
 #[derive(Debug)]
 pub struct Blocks {
@@ -107,7 +91,7 @@ pub struct Blocks {
     pub var_type: Vec<Type>,
 
     pub blocks: Vec<usize>,
-    pub block_params: Vec<usize>,
+    pub block_params: Vec<(usize, usize)>,
 }
 
 impl Blocks {
@@ -132,15 +116,12 @@ impl Blocks {
 
     fn new_block(&mut self) -> Block {
         self.blocks.push(0);
-        self.block_params.push(0);
+        self.block_params.push((0, 0));
         return self.blocks.len() - 1;
     }
 
-    fn add_label(&mut self, block: Block) -> Var {
-        let var = self.new_var();
+    fn add_label(&mut self, block: Block) {
         self.blocks[block] = self.insts.len();
-        self.block_params[block] = var;
-        var
     }
 
     fn add_op(&mut self, op: Op, a: Var, b: Var) -> usize {
@@ -162,6 +143,23 @@ impl Blocks {
         // self.var_type.push(value.get_type());
         self.insts.push(Inst::Const(reg, value));
         return reg;
+    }
+
+    fn add_jump(&mut self, bloc: Block) -> usize {
+        self.insts.push(Inst::JumpTo(bloc, vec![]));
+        return self.insts.len() - 1;
+    }
+
+    fn add_arg_to_jump(&mut self, isnt: usize, arg: usize) {
+        if let Inst::JumpTo(_, args) = &mut self.insts[isnt] {
+            args.push(arg);
+        };
+    }
+
+    fn add_param_to_block(&mut self, block: Block) -> Var {
+        let var = self.new_var();
+        self.block_params[block].1 += 1;
+        return var;
     }
 
     fn add(&mut self, ast: &Ast, scope: &mut Scope) -> usize {
@@ -233,18 +231,54 @@ impl Blocks {
                 self.insts
                     .push(Inst::Branch(cond, (then_block, else_block)));
 
+                let (mut a_scope, mut b_scope) = scope.branch();
+
                 // then
                 self.add_label(then_block);
-                let a = self.add(a, scope);
-                self.insts.push(Inst::JumpTo(out_block, a));
+                let a_ret = self.add(a, &mut a_scope);
+                let a_jump = self.add_jump(out_block);
 
                 // else
                 self.add_label(else_block);
-                let b = self.add(b, scope);
-                self.insts.push(Inst::JumpTo(out_block, b));
+                let b_ret = self.add(b, &mut b_scope);
+                let b_jump = self.add_jump(out_block);
 
                 // continue
-                return self.add_label(out_block);
+                self.add_label(out_block);
+
+                let a_vars = a_scope.vars;
+                let b_vars = b_scope.vars;
+
+                // phi nodes
+                self.block_params[out_block].0 = self.num_vars;
+
+                for key in a_vars.keys() {
+                    self.add_arg_to_jump(a_jump, *a_vars.get(key).unwrap());
+
+                    if !b_vars.contains_key(key) {
+                        self.add_arg_to_jump(b_jump, scope.get(key).unwrap());
+                    }
+
+                    scope.assign(key.clone(), self.add_param_to_block(out_block));
+                }
+
+                for key in b_vars.keys() {
+                    self.add_arg_to_jump(b_jump, *b_vars.get(key).unwrap());
+
+                    if !a_vars.contains_key(key) {
+                        self.add_arg_to_jump(a_jump, scope.get(key).unwrap());
+                        scope.assign(key.clone(), self.add_param_to_block(out_block));
+                    }
+                }
+
+                if a_ret != NO_VALUE {
+                    self.add_arg_to_jump(a_jump, a_ret);
+                    self.add_arg_to_jump(b_jump, b_ret);
+
+                    self.add_param_to_block(out_block)
+                } else {
+                    NO_VALUE
+                }
             }
             Ast::Ident(name) => scope.get(name).unwrap_or(usize::MAX),
             Ast::FuncCall(func, args) => {
@@ -255,30 +289,37 @@ impl Blocks {
                 var
             }
             Ast::Block(nodes) => {
-                let scope = &mut scope.child();
+                // let scope = &mut scope.child();
                 for node in nodes {
                     self.add(node, scope);
                 }
-                0
+                NO_VALUE
             }
             Ast::Declair(name, node) => {
                 let var = self.add(&node, scope);
-                scope.set(name.clone(), var);
+                scope.declair(name.clone(), var);
                 var
             }
             Ast::Assign(name, node) => {
                 let var = self.add(&node, scope);
-                // scope.update(name, var);
+                scope.assign(name.clone(), var);
                 var
             }
-            Ast::While(cond, block) => {
-                // let label = self.next_block();
-                // let cond = self.add(&cond, scope);
-                // let cond = self.add_op(Inst::Not(cond));
-                // let branch = self.add_placeholder();
-                // self.add(&block, scope);
-                // self.blocks.push(BlockData::JumpTo(label));
-                // self.fill_placeholder(branch, BlockData::Branch(cond, self.next_block()));
+            Ast::While(cond, body) => {
+                let in_block = self.new_block();
+                let body_block = self.new_block();
+                let out_block = self.new_block();
+
+                self.add_label(in_block);
+                let cond = self.add(&cond, scope);
+                self.insts.push(Inst::Branch(cond, (body_block, out_block)));
+
+                self.add_label(body_block);
+                self.add(body, scope);
+                // self.insts.push(Inst::JumpTo(in_block, 0)); // TODO!
+
+                self.add_label(out_block);
+
                 0
             }
             Ast::Return(node) => {
@@ -291,13 +332,19 @@ impl Blocks {
         }
     }
 
-    pub fn log(&self, args: &Vec<Value>) {
-        println!("==========>");
-        println!("'start{args:?}");
+    pub fn log(&self) {
         for (i, inst) in self.insts.iter().enumerate() {
             for block in 0..self.blocks.len() {
                 if self.blocks[block] == i {
-                    println!("'{} (v{}):", block, self.block_params[block]);
+                    let (first_param, num_params) = self.block_params[block];
+                    println!(
+                        "'{} ({}):",
+                        block,
+                        (0..num_params)
+                            .map(|i| format!("v{}", first_param + i))
+                            .collect::<Vec<String>>()
+                            .join("\n")
+                    );
                 }
             }
 
@@ -307,9 +354,16 @@ impl Blocks {
                 Inst::Op(var, op, a, b) => println!("  v{var} = ({op:?} v{a} v{b})"),
                 Inst::UOp(var, op, a) => println!("  v{var} = ({op:?} v{a})"),
                 Inst::Return(var) => println!("  return v{var}"),
-                Inst::JumpTo(block, arg) => println!("  '{block}(v{arg})"),
                 Inst::Call(var, func_id, args) => println!("  v{var} = ${func_id}{args:?}"),
-                _ => println!("  {:?}", inst),
+                Inst::JumpTo(block, args) => {
+                    println!(
+                        "  '{block}({})",
+                        args.iter()
+                            .map(|arg| format!("v{}", arg))
+                            .collect::<Vec<String>>()
+                            .join("\n")
+                    );
+                }
             }
         }
     }
@@ -353,10 +407,14 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<V
                 let args = param_regs.iter().map(|reg| regs[*reg]).collect();
                 regs[*var] = exec_ir(&funcs[*func_id_reg], funcs, mem, args);
             }
-            Inst::JumpTo(block, var) => {
+            Inst::JumpTo(block, args) => {
                 step = func.ir.blocks[*block];
-                let arg = func.ir.block_params[*block];
-                regs[arg] = regs[*var];
+
+                let (first_param, num_params) = func.ir.block_params[*block];
+
+                for i in 0..num_params {
+                    regs[first_param + i] = regs[args[i]];
+                }
             }
             Inst::Branch(cond, (a, b)) => {
                 if regs[*cond].as_bool() {

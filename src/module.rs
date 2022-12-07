@@ -21,7 +21,7 @@ impl<'a> Module<'a> {
         for i in 0..funcs.len() {
             module
                 .scope
-                .set(funcs[i].name.clone(), module.funcs.len() + i);
+                .declair(funcs[i].name.clone(), module.funcs.len() + i);
         }
 
         // turn the functions in to ir
@@ -44,11 +44,17 @@ impl<'a> Module<'a> {
     pub fn get(&self, name: &str) -> Option<&Func> {
         self.scope.get(name).map(|func_id| &self.funcs[func_id])
     }
+
+    pub fn log(&self) {
+        for func in &self.funcs {
+            func.log();
+        }
+    }
 }
 
 #[derive(Default)]
 pub struct Scope<'a> {
-    vars: HashMap<String, usize>,
+    pub vars: HashMap<String, usize>,
     parent: Option<&'a Scope<'a>>,
 }
 
@@ -63,7 +69,11 @@ impl<'a> Scope<'a> {
         }
     }
 
-    pub fn set(&mut self, name: String, value: usize) {
+    pub fn declair(&mut self, name: String, value: usize) {
+        self.vars.insert(name, value);
+    }
+
+    pub fn assign(&mut self, name: String, value: usize) {
         self.vars.insert(name, value);
     }
 }
@@ -74,5 +84,9 @@ impl<'a> Scope<'a> {
             vars: HashMap::new(),
             parent: Some(self),
         };
+    }
+
+    pub fn branch(&self) -> (Scope, Scope) {
+        return (self.child(), self.child());
     }
 }

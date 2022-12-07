@@ -10,13 +10,29 @@ pub mod core {
     // pub use crate::wasm::exec_wasm;
 }
 
-fn main() {}
+fn main() {
+    let src = "
+        fn main() I32 {
+            let x = 100
+            if true {
+                x = 200
+            } else {
+                x = 300
+            }
+            return x
+        }
+    ";
+
+    let module = module::Module::from_src(src);
+
+    module.log();
+
+    println!("result: {:?}", module.exec("main", vec![]));
+}
 
 #[cfg(test)]
 #[rustfmt::skip]
 mod tests_ir {
-    use super::*;
-    
     use crate::module::*;
     use crate::value::*;
 
