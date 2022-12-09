@@ -54,13 +54,16 @@ impl<'a> Module<'a> {
 
 #[derive(Default)]
 pub struct Scope<'a> {
-    pub vars: HashMap<String, usize>,
+    pub assign: HashMap<String, usize>,
+    pub locals: HashMap<String, usize>,
     parent: Option<&'a Scope<'a>>,
 }
 
 impl<'a> Scope<'a> {
     pub fn get(&self, name: &str) -> Option<usize> {
-        if let Some(value) = self.vars.get(name) {
+        if let Some(value) = self.locals.get(name) {
+            return Some(*value);
+        } else if let Some(value) = self.locals.get(name) {
             return Some(*value);
         } else if let Some(parent) = self.parent {
             return parent.get(name);
@@ -70,18 +73,23 @@ impl<'a> Scope<'a> {
     }
 
     pub fn declair(&mut self, name: String, value: usize) {
-        self.vars.insert(name, value);
+        self.locals.insert(name, value);
     }
 
     pub fn assign(&mut self, name: String, value: usize) {
-        self.vars.insert(name, value);
+        if self.locals.contains_key(&name) {
+            self.locals.insert(name, value);
+        } else {
+            self.assign.insert(name, value);
+        }
     }
 }
 
 impl<'a> Scope<'a> {
     pub fn child(&self) -> Scope {
         return Scope {
-            vars: HashMap::new(),
+            assign: HashMap::new(),
+            locals: HashMap::new(),
             parent: Some(self),
         };
     }

@@ -295,8 +295,8 @@ impl Blocks {
                 // continue
                 self.add_label(out_block);
 
-                let a_vars = a_scope.vars;
-                let b_vars = b_scope.vars;
+                let a_vars = a_scope.assign;
+                let b_vars = b_scope.assign;
 
                 // phi nodes
                 self.block_params[out_block].0 = self.num_vars;
@@ -338,9 +338,13 @@ impl Blocks {
                 var
             }
             Ast::Block(nodes) => {
-                // let scope = &mut scope.child();
+                let mut child_scope = scope.child();
                 for node in nodes {
-                    self.add(node, scope);
+                    self.add(node, &mut child_scope);
+                }
+                let child_vars = child_scope.assign;
+                for name in child_vars.keys() {
+                    scope.assign(name.clone(), *child_vars.get(name).unwrap());
                 }
                 NO_VALUE
             }
@@ -366,7 +370,7 @@ impl Blocks {
                 self.add_label(body_block);
                 let r = self.add(body, &mut body_scope);
                 let body_jump = self.add_jump(cond_block);
-                let body_vars = body_scope.vars;
+                let body_vars = body_scope.assign;
 
                 // cond block params
                 self.block_params[cond_block].0 = self.num_vars;
