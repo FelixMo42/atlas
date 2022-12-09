@@ -145,8 +145,8 @@ impl Blocks {
         return reg;
     }
 
-    fn add_jump(&mut self, bloc: Block) -> usize {
-        self.insts.push(Inst::JumpTo(bloc, vec![]));
+    fn add_jump(&mut self, block: Block) -> usize {
+        self.insts.push(Inst::JumpTo(block, vec![]));
         return self.insts.len() - 1;
     }
 
@@ -160,6 +160,55 @@ impl Blocks {
         let var = self.new_var();
         self.block_params[block].1 += 1;
         return var;
+    }
+
+    fn update(&mut self, block: Block, old: Var, new: Var) {
+        for i in self.blocks[block]..self.insts.len() {
+            match &self.insts[i] {
+                Inst::Branch(cond, paths) => {
+                    if *cond == old {
+                        self.insts[i] = Inst::Branch(new, paths.clone())
+                    }
+                }
+                Inst::Call(var, func, args) => {
+                    if args.contains(&old) {
+                        self.insts[i] = Inst::Call(
+                            *var,
+                            *func,
+                            args.iter()
+                                .map(|arg| if *arg == old { new } else { *arg })
+                                .collect(),
+                        )
+                    }
+                }
+                Inst::JumpTo(block, args) => {
+                    self.insts[i] = Inst::JumpTo(
+                        *block,
+                        args.iter()
+                            .map(|arg| if *arg == old { new } else { *arg })
+                            .collect(),
+                    )
+                }
+                Inst::Return(var) => {
+                    if *var == old {
+                        self.insts[i] = Inst::Return(new)
+                    }
+                }
+                Inst::Op(var, op, a, b) => {
+                    if *a == old {
+                        self.insts[i] = Inst::Op(*var, op.clone(), new, *b)
+                    } else if *b == old {
+                        self.insts[i] = Inst::Op(*var, op.clone(), *a, new)
+                    }
+                }
+                Inst::UOp(var, op, a) => {
+                    if *a == old {
+                        self.insts[i] = Inst::UOp(*var, op.clone(), new)
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     fn add(&mut self, ast: &Ast, scope: &mut Scope) -> usize {
@@ -306,21 +355,42 @@ impl Blocks {
                 var
             }
             Ast::While(cond, body) => {
-                let in_block = self.new_block();
+                let cond_block = self.new_block();
                 let body_block = self.new_block();
                 let out_block = self.new_block();
 
-                self.add_label(in_block);
+                let entry_jump = self.add_jump(cond_block);
+
+                // blody blocks insts
+                let mut body_scope = scope.child();
+                self.add_label(body_block);
+                let r = self.add(body, &mut body_scope);
+                let body_jump = self.add_jump(cond_block);
+                let body_vars = body_scope.vars;
+
+                // cond block params
+                self.block_params[cond_block].0 = self.num_vars;
+                for name in body_vars.keys() {
+                    let old = scope.get(name).unwrap();
+                    let arg = *body_vars.get(name).unwrap();
+                    let new = self.add_param_to_block(cond_block);
+
+                    self.add_arg_to_jump(entry_jump, old);
+                    self.add_arg_to_jump(body_jump, arg);
+
+                    scope.assign(name.clone(), new);
+
+                    self.update(body_block, old, new);
+                }
+
+                // cond block insts
+                self.add_label(cond_block);
                 let cond = self.add(&cond, scope);
                 self.insts.push(Inst::Branch(cond, (body_block, out_block)));
 
-                self.add_label(body_block);
-                self.add(body, scope);
-                // self.insts.push(Inst::JumpTo(in_block, 0)); // TODO!
-
                 self.add_label(out_block);
 
-                0
+                r
             }
             Ast::Return(node) => {
                 let reg = self.add(&node, scope);

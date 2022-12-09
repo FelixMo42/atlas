@@ -13,11 +13,9 @@ pub mod core {
 fn main() {
     let src = "
         fn main() I32 {
-            let x = 100
-            if true {
-                x = 200
-            } else {
-                x = 300
+            let x = 0
+            while x < 10 {
+                x = x + 1
             }
             return x
         }
