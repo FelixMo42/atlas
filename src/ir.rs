@@ -108,7 +108,8 @@ impl Blocks {
         };
     }
 
-    fn new_var(&mut self) -> Var {
+    fn new_var(&mut self, t: Type) -> Var {
+        self.var_type.push(t);
         self.var_decl.push(self.insts.len() + 1);
         self.num_vars += 1;
         return self.num_vars - 1;
@@ -125,22 +126,22 @@ impl Blocks {
     }
 
     fn add_op(&mut self, op: Op, a: Var, b: Var) -> usize {
-        let var = self.new_var();
-        // self.var_type.push(inst.get_type(self));
+        let var = self.new_var(match op {
+            Op::Add | Op::Div | Op::Sub | Op::Mul => self.var_type[a],
+            Op::Eq | Op::Ne | Op::Ge | Op::Gt | Op::Le | Op::Lt => Type::Bool,
+        });
         self.insts.push(Inst::Op(var, op, a, b));
         return var;
     }
 
     fn add_uop(&mut self, op: UOp, a: Var) -> usize {
-        let var = self.new_var();
-        // self.var_type.push(inst.get_type(self));
+        let var = self.new_var(self.var_type[a]);
         self.insts.push(Inst::UOp(var, op, a));
         return var;
     }
 
     fn add_consts(&mut self, value: Value) -> usize {
-        let reg = self.new_var();
-        // self.var_type.push(value.get_type());
+        let reg = self.new_var(value.get_type());
         self.insts.push(Inst::Const(reg, value));
         return reg;
     }
@@ -156,8 +157,8 @@ impl Blocks {
         };
     }
 
-    fn add_param_to_block(&mut self, block: Block) -> Var {
-        let var = self.new_var();
+    fn add_param_to_block(&mut self, block: Block, t: Type) -> Var {
+        let var = self.new_var(t);
         self.block_params[block].1 += 1;
         return var;
     }
@@ -308,7 +309,8 @@ impl Blocks {
                         self.add_arg_to_jump(b_jump, scope.get(key).unwrap());
                     }
 
-                    scope.assign(key.clone(), self.add_param_to_block(out_block));
+                    let t = self.var_type[scope.get(key).unwrap()];
+                    scope.assign(key.clone(), self.add_param_to_block(out_block, t));
                 }
 
                 for key in b_vars.keys() {
@@ -316,7 +318,8 @@ impl Blocks {
 
                     if !a_vars.contains_key(key) {
                         self.add_arg_to_jump(a_jump, scope.get(key).unwrap());
-                        scope.assign(key.clone(), self.add_param_to_block(out_block));
+                        let t = self.var_type[scope.get(key).unwrap()];
+                        scope.assign(key.clone(), self.add_param_to_block(out_block, t));
                     }
                 }
 
@@ -324,18 +327,19 @@ impl Blocks {
                     self.add_arg_to_jump(a_jump, a_ret);
                     self.add_arg_to_jump(b_jump, b_ret);
 
-                    self.add_param_to_block(out_block)
+                    self.add_param_to_block(out_block, self.var_type[a_ret])
                 } else {
                     NO_VALUE
                 }
             }
             Ast::Ident(name) => scope.get(name).unwrap_or(usize::MAX),
             Ast::FuncCall(func, args) => {
-                let func = self.add(func, scope);
-                let arg_regs = args.iter().map(|arg| self.add(arg, scope)).collect();
-                let var = self.new_var();
-                self.insts.push(Inst::Call(var, func, arg_regs));
-                var
+                // let func = self.add(func, scope);
+                // let arg_regs = args.iter().map(|arg| self.add(arg, scope)).collect();
+                // let var = self.new_var();
+                // self.insts.push(Inst::Call(var, func, arg_regs));
+                // var
+                0
             }
             Ast::Block(nodes) => {
                 let mut child_scope = scope.child();
@@ -377,7 +381,7 @@ impl Blocks {
                 for name in body_vars.keys() {
                     let old = scope.get(name).unwrap();
                     let arg = *body_vars.get(name).unwrap();
-                    let new = self.add_param_to_block(cond_block);
+                    let new = self.add_param_to_block(cond_block, self.var_type[old]);
 
                     self.add_arg_to_jump(entry_jump, old);
                     self.add_arg_to_jump(body_jump, arg);

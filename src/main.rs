@@ -3,11 +3,12 @@ mod lexer;
 mod module;
 mod parser;
 mod value;
-// mod wasm;
+mod wasm;
 
 pub mod core {
     pub use crate::module::Module;
-    // pub use crate::wasm::exec_wasm;
+    pub use crate::value::*;
+    pub use crate::wasm::exec_wasm;
 }
 
 fn main() {
@@ -31,26 +32,25 @@ fn main() {
 #[cfg(test)]
 #[rustfmt::skip]
 mod tests_ir {
-    use crate::module::*;
-    use crate::value::*;
+    use crate::core::*;
 
     fn test_interpreter(src: &str, value: Value) {
         assert_eq!(Module::from_src(src).exec("main", vec![]), value);
     }
 
-    // fn test_wasm(src: &str, value: Value) {
-    //     match value {
-    //         Value::F64(val) => assert_eq!(wasm::exec_wasm::<f64>(src), val),
-    //         Value::I32(val) => assert_eq!(wasm::exec_wasm::<i32>(src), val),
-    //         Value::Bool(true) => assert_eq!(wasm::exec_wasm::<i32>(src), 1),
-    //         Value::Bool(false) => assert_eq!(wasm::exec_wasm::<i32>(src), 0),
-    //         _ => {}
-    //     }
-    // }
+    fn test_wasm(src: &str, value: Value) {
+        match value {
+            Value::F64(val) => assert_eq!(exec_wasm::<f64>(src), val),
+            Value::I32(val) => assert_eq!(exec_wasm::<i32>(src), val),
+            Value::Bool(true) => assert_eq!(exec_wasm::<i32>(src), 1),
+            Value::Bool(false) => assert_eq!(exec_wasm::<i32>(src), 0),
+            _ => {}
+        }
+    }
 
     fn test(src: &str, value: Value) {
         test_interpreter(src, value);
-        // test_wasm(src, value);
+        test_wasm(src, value);
     }
 
     fn test_eval(src: &str, value: Value) {

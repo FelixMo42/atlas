@@ -47,9 +47,49 @@ pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
             writeln!(f, "\t\t(local ${var} {})", rep(func.ir.var_type[var]))?;
         }
 
-        for block in &func.ir.blocks {
+        for block in &func.ir.insts {
             match block {
-                BlockData::Consts(var, val) => {
+                Inst::Op(var, op, a, b) => {
+                    writeln!(f, "\t\tget_local ${a}")?;
+                    writeln!(f, "\t\tget_local ${b}")?;
+                    match (op, func.ir.var_type[*a]) {
+                        (Op::Add, Type::I32) => writeln!(f, "\t\ti32.add")?,
+                        (Op::Add, Type::F64) => writeln!(f, "\t\tf64.add")?,
+                        (Op::Sub, Type::I32) => writeln!(f, "\t\ti32.sub")?,
+                        (Op::Sub, Type::F64) => writeln!(f, "\t\tf64.sub")?,
+                        (Op::Mul, Type::I32) => writeln!(f, "\t\ti32.mul")?,
+                        (Op::Mul, Type::F64) => writeln!(f, "\t\tf64.mul")?,
+                        (Op::Div, Type::I32) => writeln!(f, "\t\ti32.div_s")?,
+                        (Op::Div, Type::F64) => writeln!(f, "\t\tf64.div_s")?,
+                        (Op::Eq, Type::Bool) => writeln!(f, "\t\ti32.eq")?,
+                        (Op::Eq, Type::I32) => writeln!(f, "\t\ti32.eq")?,
+                        (Op::Eq, Type::F64) => writeln!(f, "\t\tf64.eq")?,
+                        _ => {}
+                    }
+                    writeln!(f, "\t\tset_local ${var}")?;
+                }
+                Inst::UOp(var, op, a) => {
+                    match op {
+                        UOp::Neg => match func.ir.var_type[*a] {
+                            Type::I32 => {
+                                writeln!(f, "\t\ti32.const 0")?;
+                                writeln!(f, "\t\tget_local ${a}")?;
+                                writeln!(f, "\t\ti32.sub")?;
+                            }
+                            Type::F64 => {
+                                writeln!(f, "\t\tget_local ${a}")?;
+                                writeln!(f, "\t\tf64.neg")?;
+                            }
+                            _ => unimplemented!(),
+                        },
+                        UOp::Not => {
+                            writeln!(f, "\t\tget_local ${a}")?;
+                            writeln!(f, "\t\ti32.not")?;
+                        }
+                    }
+                    writeln!(f, "\t\tset_local ${var}")?;
+                }
+                Inst::Const(var, val) => {
                     match val {
                         Value::Bool(true) => writeln!(f, "\t\ti32.const 1")?,
                         Value::Bool(false) => writeln!(f, "\t\ti32.const 0")?,
@@ -59,73 +99,7 @@ pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
                     }
                     writeln!(f, "\t\tset_local ${var}")?;
                 }
-                BlockData::Assign(var, inst) => {
-                    match inst {
-                        Inst::Neg(var) => match func.ir.var_type[*var] {
-                            Type::I32 => {
-                                writeln!(f, "\t\ti32.const 0")?;
-                                writeln!(f, "\t\tget_local ${var}")?;
-                                writeln!(f, "\t\ti32.sub")?;
-                            }
-                            Type::F64 => {
-                                writeln!(f, "\t\tget_local ${var}")?;
-                                writeln!(f, "\t\tf64.neg")?;
-                            }
-                            _ => unimplemented!(),
-                        },
-                        Inst::Add(a, b) => {
-                            writeln!(f, "\t\tget_local ${a}")?;
-                            writeln!(f, "\t\tget_local ${b}")?;
-                            match func.ir.var_type[*var] {
-                                Type::I32 => writeln!(f, "\t\ti32.add")?,
-                                Type::F64 => writeln!(f, "\t\tf64.add")?,
-                                _ => unimplemented!(),
-                            }
-                        }
-                        Inst::Sub(a, b) => {
-                            writeln!(f, "\t\tget_local ${a}")?;
-                            writeln!(f, "\t\tget_local ${b}")?;
-                            match func.ir.var_type[*var] {
-                                Type::I32 => writeln!(f, "\t\ti32.sub")?,
-                                Type::F64 => writeln!(f, "\t\tf64.sub")?,
-                                _ => unimplemented!(),
-                            }
-                        }
-                        Inst::Div(a, b) => {
-                            writeln!(f, "\t\tget_local ${a}")?;
-                            writeln!(f, "\t\tget_local ${b}")?;
-                            match func.ir.var_type[*var] {
-                                Type::I32 => writeln!(f, "\t\ti32.div_s")?,
-                                Type::F64 => writeln!(f, "\t\tf64.div_s")?,
-                                _ => unimplemented!(),
-                            }
-                        }
-                        Inst::Mul(a, b) => {
-                            writeln!(f, "\t\tget_local ${a}")?;
-                            writeln!(f, "\t\tget_local ${b}")?;
-                            match func.ir.var_type[*var] {
-                                Type::I32 => writeln!(f, "\t\ti32.mul")?,
-                                Type::F64 => writeln!(f, "\t\tf64.mul")?,
-                                _ => unimplemented!(),
-                            }
-                        }
-                        Inst::Eq(a, b) => {
-                            writeln!(f, "\t\tget_local ${a}")?;
-                            writeln!(f, "\t\tget_local ${b}")?;
-                            match func.ir.var_type[*var] {
-                                Type::Bool => writeln!(f, "\t\ti32.eq")?,
-                                Type::I32 => writeln!(f, "\t\ti32.eq")?,
-                                Type::F64 => writeln!(f, "\t\tf64.eq")?,
-                            }
-                        }
-                        Inst::Move(var) => {
-                            writeln!(f, "\t\tget_local ${var}")?;
-                        }
-                        _ => unimplemented!(),
-                    }
-                    writeln!(f, "\t\tset_local ${var}")?;
-                }
-                BlockData::Return(var) => {
+                Inst::Return(var) => {
                     writeln!(f, "\t\tget_local ${var}")?;
                 }
                 _ => {}
