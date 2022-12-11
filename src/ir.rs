@@ -103,8 +103,8 @@ impl Blocks {
             var_decl: vec![],
             var_type: vec![],
 
-            blocks: vec![],
-            block_params: vec![],
+            blocks: vec![0],
+            block_params: vec![(0, 0)],
         };
     }
 

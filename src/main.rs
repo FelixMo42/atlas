@@ -14,11 +14,7 @@ pub mod core {
 fn main() {
     let src = "
         fn main() I32 {
-            let x = 0
-            while x < 10 {
-                x = x + 1
-            }
-            return x
+            return if (false) 1 else if (false) 2 else 3
         }
     ";
 
@@ -248,9 +244,9 @@ mod tests_ir {
     #[test]
     fn test_if() {
         test_eval("if true 1 else 2", Value::I32(1));
-        test_eval("1 + if true 1 else 2", Value::I32(2));
-        test_eval("if true 1 else 2 + 1", Value::I32(1));
-        test_eval("if (false) 1 else 2", Value::I32(2));
+        test_eval("1 + if true 10 else 20", Value::I32(11));
+        test_eval("if true 100 else 200 + 1", Value::I32(100));
+        test_eval("if (false) 1000 else 2000", Value::I32(2000));
         test_eval("if (false) 1 else if (false) 2 else 3", Value::I32(3));
     }
 
