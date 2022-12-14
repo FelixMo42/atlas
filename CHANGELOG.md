@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.0
+
+### Added
+
+- Wasm!
+
+### Removed
+
+- removed memory functions
+
 ## v0.2.3
 
 ### Added
