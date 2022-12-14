@@ -13,12 +13,12 @@ pub mod core {
 
 fn main() {
     let src = "
+        fn forty() I32 {
+            return 20 * 2
+        }
+
         fn main() I32 {
-            let x = 1
-            while x < 10 {
-                x = x + 1
-            }
-            return if (false) x + 1 else if (false) x + 2 else x + 3
+            return forty() + 200
         }
     ";
 
@@ -218,9 +218,9 @@ mod tests_ir {
             }
 
             fn main() I32 {
-                return forty() + 2
+                return forty() + 200
             }
-        ", Value::I32(42));
+        ", Value::I32(240));
 
         test("
             fn add(a: I32, b: I32) I32 {

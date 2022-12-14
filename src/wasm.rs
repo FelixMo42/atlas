@@ -148,7 +148,13 @@ fn reloop(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<
 fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<usize>> {
     for inst in &func.ir.insts[func.ir.blocks[block]..] {
         match inst {
-            Inst::Call(var, call, args) => unimplemented!(),
+            Inst::Call(var, call, args) => {
+                for arg in args {
+                    writeln!(f, "\t\tget_local ${arg}")?;
+                }
+                writeln!(f, "\t\tcall ${call}")?;
+                writeln!(f, "\t\tset_local ${var}")?;
+            }
             Inst::Op(var, op, a, b) => {
                 writeln!(f, "\t\tget_local ${a}")?;
                 writeln!(f, "\t\tget_local ${b}")?;
@@ -211,7 +217,7 @@ fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Opti
                     Value::Bool(false) => writeln!(f, "\t\ti32.const 0")?,
                     Value::F64(val) => writeln!(f, "\t\tf64.const {val}")?,
                     Value::I32(val) => writeln!(f, "\t\ti32.const {val}")?,
-                    _ => unimplemented!(),
+                    _ => unreachable!(),
                 }
                 writeln!(f, "\t\tset_local ${var}")?;
             }

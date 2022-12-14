@@ -334,12 +334,11 @@ impl Blocks {
             }
             Ast::Ident(name) => scope.get(name).unwrap_or(usize::MAX),
             Ast::FuncCall(func, args) => {
-                // let func = self.add(func, scope);
-                // let arg_regs = args.iter().map(|arg| self.add(arg, scope)).collect();
-                // let var = self.new_var();
-                // self.insts.push(Inst::Call(var, func, arg_regs));
-                // var
-                0
+                let func = self.add(func, scope);
+                let arg_regs = args.iter().map(|arg| self.add(arg, scope)).collect();
+                let var = self.new_var(Type::I32); // TODO: fix type
+                self.insts.push(Inst::Call(var, func, arg_regs));
+                var
             }
             Ast::Block(nodes) => {
                 let mut child_scope = scope.child();
