@@ -103,9 +103,10 @@ fn main() {
 - [x] step 2: switch over to using register based ir and add basic language
       features
 - [x] step 3: add linear memory (a la wasm)
-- [ ] step 4: types!
-- [ ] step 5: compile to wasm
-- [ ] step 6: bootstraps baby
+- [x] step 4: types!
+- [x] step 5: compile to wasm
+- [ ] step 6: dev server
+- [ ] step 7: bootstraps baby
 
 ## How do I use it?
 
