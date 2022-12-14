@@ -14,15 +14,20 @@ pub mod core {
 fn main() {
     let src = "
         fn main() I32 {
-            return if (false) 1 else if (false) 2 else 3
+            let x = 1
+            while x < 10 {
+                x = x + 1
+            }
+            return if (false) x + 1 else if (false) x + 2 else x + 3
         }
     ";
 
     let module = module::Module::from_src(src);
-
     module.log();
 
-    println!("result: {:?}", module.exec("main", vec![]));
+    println!("{}", core::exec_wasm::<i32>(src));
+
+    // println!("result: {:?}", module.exec("main", vec![]));
 }
 
 #[cfg(test)]

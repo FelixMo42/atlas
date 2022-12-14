@@ -369,6 +369,11 @@ impl Blocks {
 
                 let entry_jump = self.add_jump(cond_block);
 
+                // cond block insts
+                self.add_label(cond_block);
+                let cond = self.add(&cond, scope);
+                self.insts.push(Inst::Branch(cond, (body_block, out_block)));
+
                 // blody blocks insts
                 let mut body_scope = scope.child();
                 self.add_label(body_block);
@@ -388,13 +393,8 @@ impl Blocks {
 
                     scope.assign(name.clone(), new);
 
-                    self.update(body_block, old, new);
+                    self.update(cond_block, old, new);
                 }
-
-                // cond block insts
-                self.add_label(cond_block);
-                let cond = self.add(&cond, scope);
-                self.insts.push(Inst::Branch(cond, (body_block, out_block)));
 
                 self.add_label(out_block);
 

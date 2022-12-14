@@ -2,6 +2,7 @@ use crate::ir::*;
 use crate::module::*;
 use crate::value::*;
 
+use std::collections::HashSet;
 use std::io::Write;
 
 pub fn exec_wasm<T: wasmtime::WasmResults>(src: &str) -> T {
@@ -64,43 +65,89 @@ pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
     return Ok(f);
 }
 
-fn reloop(f: &mut Vec<u8>, func: &Func, mut block: usize) -> std::io::Result<Option<usize>> {
-    while let Some(inst) = add_block(f, func, block)? {
-        println!(">>> {block}");
+/// Get the final instruction of a block.
+fn get_exit_inst(func: &Func, block: usize) -> Inst {
+    for inst in &func.ir.insts[func.ir.blocks[block]..] {
         match inst {
-            Inst::Branch(cond, (a, b)) => {
-                writeln!(f, "\t\tget_local ${}", cond)?;
-                writeln!(f, "\t\t(if")?;
-                writeln!(f, "\t\t(then")?;
-                if let Some(b) = reloop(f, func, a)? {
-                    block = b;
-                }
-                writeln!(f, "\t\t)")?;
-                writeln!(f, "\t\t(else")?;
-                reloop(f, func, b)?;
-                writeln!(f, "\t\t)")?;
-                writeln!(f, "\t\t)")?;
-            }
-            Inst::JumpTo(block, args) => {
-                let start = func.ir.block_params[block].0;
-                for i in 0..args.len() {
-                    writeln!(f, "\t\tget_local ${}", args[i])?;
-                    writeln!(f, "\t\tset_local ${}", start + i)?;
-                }
+            Inst::Return(..) | Inst::Branch(..) | Inst::JumpTo(..) => return inst.clone(),
+            _ => {}
+        };
+    }
 
-                return Ok(Some(block));
+    panic!("Block didn't end!")
+}
+
+/// Get the list of immidate children of <block>.
+fn get_children(func: &Func, block: usize) -> Vec<usize> {
+    match get_exit_inst(func, block) {
+        Inst::Return(..) => vec![],
+        Inst::Branch(_, (a, b)) => vec![a, b],
+        Inst::JumpTo(target, _) => vec![target],
+        _ => unreachable!(),
+    }
+}
+
+/// Does <a> lead into <b>?
+fn is_parent_of(func: &Func, a: usize, b: usize) -> bool {
+    let mut todo = vec![a];
+    let mut seen = HashSet::new();
+
+    while let Some(block) = todo.pop() {
+        for child in get_children(func, block) {
+            if child == b {
+                return true;
+            } else if !seen.contains(&b) {
+                seen.insert(b);
+                todo.push(b);
             }
-            _ => unimplemented!(),
         }
     }
 
-    return Ok(None);
+    return false;
 }
 
-fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<Inst>> {
+/// Do all path to <b> go throght <a>?
+fn dominates(f: &Func, a: usize, b: usize) -> bool {
+    return true;
+}
+
+/// Does a child of <block> point towards <block>?
+fn is_loop(f: &Func, block: usize) -> bool {
+    for inst in &f.ir.insts[f.ir.blocks[block]..] {
+        match inst {
+            Inst::Branch(_, (a, b)) => {
+                if *a == block || *b == block {
+                    return true;
+                }
+            }
+            Inst::JumpTo(target, _) => {
+                if *target == block {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    return false;
+}
+
+fn reloop(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<usize>> {
+    let next_block = if is_loop(func, block) {
+        writeln!(f, "\t(loop")?;
+        let next_block = add_block(f, func, block);
+        writeln!(f, "\t)")?;
+        next_block
+    } else {
+        add_block(f, func, block)
+    };
+
+    return next_block;
+}
+
+fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<usize>> {
     for inst in &func.ir.insts[func.ir.blocks[block]..] {
         match inst {
-            Inst::Branch(..) | Inst::JumpTo(..) => return Ok(Some(inst.clone())),
             Inst::Call(var, call, args) => unimplemented!(),
             Inst::Op(var, op, a, b) => {
                 writeln!(f, "\t\tget_local ${a}")?;
@@ -114,10 +161,26 @@ fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Opti
                     (Op::Mul, Type::F64) => writeln!(f, "\t\tf64.mul")?,
                     (Op::Div, Type::I32) => writeln!(f, "\t\ti32.div_s")?,
                     (Op::Div, Type::F64) => writeln!(f, "\t\tf64.div_s")?,
+
                     (Op::Eq, Type::Bool) => writeln!(f, "\t\ti32.eq")?,
                     (Op::Eq, Type::I32) => writeln!(f, "\t\ti32.eq")?,
                     (Op::Eq, Type::F64) => writeln!(f, "\t\tf64.eq")?,
-                    _ => {}
+
+                    (Op::Ne, Type::Bool) => writeln!(f, "\t\ti32.ne")?,
+                    (Op::Ne, Type::I32) => writeln!(f, "\t\ti32.ne")?,
+                    (Op::Ne, Type::F64) => writeln!(f, "\t\tf64.ne")?,
+
+                    (Op::Ge, Type::I32) => writeln!(f, "\t\ti32.ge_s")?,
+                    (Op::Ge, Type::F64) => writeln!(f, "\t\tf64.ge_s")?,
+                    (Op::Gt, Type::I32) => writeln!(f, "\t\ti32.gt_s")?,
+                    (Op::Gt, Type::F64) => writeln!(f, "\t\tf64.gt_s")?,
+
+                    (Op::Le, Type::I32) => writeln!(f, "\t\ti32.le_s")?,
+                    (Op::Le, Type::F64) => writeln!(f, "\t\tf64.le_s")?,
+                    (Op::Lt, Type::I32) => writeln!(f, "\t\ti32.lt_s")?,
+                    (Op::Lt, Type::F64) => writeln!(f, "\t\tf64.lt_s")?,
+
+                    _ => unimplemented!(),
                 }
                 writeln!(f, "\t\tset_local ${var}")?;
             }
@@ -155,9 +218,44 @@ fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Opti
             Inst::Return(var) => {
                 writeln!(f, "\t\tget_local ${var}")?;
                 writeln!(f, "\t\treturn")?;
+
+                return Ok(None);
+            }
+            Inst::Branch(cond, (a, b)) => {
+                writeln!(f, "\t\tget_local ${}", cond)?;
+                writeln!(f, "\t\t(if")?;
+                writeln!(f, "\t\t(then")?;
+                let a = reloop(f, func, *a)?;
+                writeln!(f, "\t\t)")?;
+                writeln!(f, "\t\t(else")?;
+                let b = reloop(f, func, *b)?;
+                writeln!(f, "\t\t)")?;
+                writeln!(f, "\t\t)")?;
+
+                return match (a, b) {
+                    _ => Ok(None),
+                };
+            }
+            Inst::JumpTo(target, args) => {
+                // pass the paramaters
+                let start = func.ir.block_params[*target].0;
+                for i in 0..args.len() {
+                    writeln!(f, "\t\tget_local ${}", args[i])?;
+                    writeln!(f, "\t\tset_local ${}", start + i)?;
+                }
+
+                // move on to the next block
+                if is_parent_of(func, *target, block) {
+                    writeln!(f, "\t\tbr 1")?;
+                    return Ok(None);
+                } else if dominates(func, block, *target) {
+                    return reloop(f, func, *target);
+                } else {
+                    return Ok(Some(*target));
+                }
             }
         };
     }
 
-    return Ok(None);
+    panic!("Block didn't end!")
 }
