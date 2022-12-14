@@ -11,6 +11,7 @@ const NO_VALUE: Var = usize::MAX;
 #[derive(Debug)]
 pub struct Func {
     pub name: String,
+    pub num_params: usize,
     pub return_type: Type,
     pub ir: Blocks,
 }
@@ -20,6 +21,8 @@ impl Func {
         let mut ir = Blocks::new(&func_def.params);
 
         let scope = &mut module.scope.child();
+
+        let num_params = func_def.params.len();
 
         for (i, param) in func_def.params.into_iter().enumerate() {
             scope.declair(param.name, i);
@@ -31,6 +34,7 @@ impl Func {
 
         return Func {
             name: func_def.name,
+            num_params,
             return_type: func_def.return_type,
             ir,
         };

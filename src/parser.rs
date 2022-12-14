@@ -198,6 +198,7 @@ pub struct FuncDef {
     pub body: Ast,
 }
 
+#[derive(Debug)]
 pub struct Param {
     pub name: String,
     pub param_type: Type,

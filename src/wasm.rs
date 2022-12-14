@@ -42,10 +42,17 @@ pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
     for (i, func) in module.funcs.iter().enumerate() {
         writeln!(f, "\t(func ${}", i)?;
         writeln!(f, "\t\t(export \"{}\")", func.name)?;
+
+        // add params
+        for var in 0..func.num_params {
+            writeln!(f, "\t\t(param ${var} {})", rep(func.ir.var_type[var]))?;
+        }
+
+        // result type
         writeln!(f, "\t\t(result {})", rep(func.return_type))?;
 
         // add locals
-        for var in 0..func.ir.num_vars {
+        for var in func.num_params..func.ir.num_vars {
             writeln!(f, "\t\t(local ${var} {})", rep(func.ir.var_type[var]))?;
         }
 
