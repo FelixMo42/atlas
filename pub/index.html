@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Hello!</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Open Sans', sans-serif;
+        }
+
+        .row {
+            flex-direction: row;
+            display: flex;
+        }
+
+        .col {
+            flex-direction: column;
+            display: flex;
+        }
+
+        .flex {
+            flex: 1;
+        }
+
+        .pane {
+            border: 2px solid gray;
+            resize: none;
+            margin: 2px;
+            padding: 5px;
+            white-space: pre;
+        }
+
+        body {
+            margin: 0px;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #root {
+            height: 100%;
+            padding: 2px;
+        }
+
+        #input {
+            border: 2px solid gray;
+            resize: none;
+            margin: 2px;
+            padding: 5px;
+        }
+
+        #input:focus {
+            border: 2px solid teal;
+            outline: none;
+        }
+    </style>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div id="root" class="row">
+        <textarea id="input" class="flex"></textarea>
+        <div id="wat" class="flex pane"></div>
+    </div>
+</body>
+
+<script type="module">
+    function parse(src) {
+        return fetch("/parse", {
+            method: "POST",
+            body: src
+        }).then(res => res.text())
+    }
+
+    const inputEl = document.getElementById("input")
+    const outputEl = document.getElementById("wat")
+    inputEl.oninput = async () => {
+        outputEl.innerHTML = await parse(inputEl.value)
+    }
+</script>
+
+</html>

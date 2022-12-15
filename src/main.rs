@@ -5,6 +5,8 @@ mod parser;
 mod value;
 mod wasm;
 
+mod server;
+
 pub mod core {
     pub use crate::module::Module;
     pub use crate::value::*;
@@ -12,22 +14,7 @@ pub mod core {
 }
 
 fn main() {
-    let src = "
-        fn forty() I32 {
-            return 20 * 2
-        }
-
-        fn main() I32 {
-            return forty() + 200
-        }
-    ";
-
-    let module = module::Module::from_src(src);
-    module.log();
-
-    println!("{}", core::exec_wasm::<i32>(src));
-
-    // println!("result: {:?}", module.exec("main", vec![]));
+    server::start()
 }
 
 #[cfg(test)]
