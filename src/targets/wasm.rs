@@ -1,8 +1,8 @@
 use crate::ir::*;
 use crate::module::*;
+use crate::utils::*;
 use crate::value::*;
 
-use std::collections::HashSet;
 use std::io::Write;
 
 pub fn exec_wasm<T: wasmtime::WasmResults>(src: &str) -> T {
@@ -70,73 +70,6 @@ pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
     writeln!(f, ")")?;
 
     return Ok(f);
-}
-
-/// Get the final instruction of a block.
-fn get_exit_inst(func: &Func, block: usize) -> Inst {
-    for inst in &func.ir.insts[func.ir.blocks[block]..] {
-        match inst {
-            Inst::Return(..) | Inst::Branch(..) | Inst::JumpTo(..) => return inst.clone(),
-            _ => {}
-        };
-    }
-
-    panic!("Block didn't end!")
-}
-
-/// Get the list of immidate children of <block>.
-fn get_children(func: &Func, block: usize) -> Vec<usize> {
-    match get_exit_inst(func, block) {
-        Inst::Return(..) => vec![],
-        Inst::Branch(_, (a, b)) => vec![a, b],
-        Inst::JumpTo(target, _) => vec![target],
-        _ => unreachable!(),
-    }
-}
-
-/// Does <a> lead into <b>?
-fn is_parent_of(func: &Func, a: usize, b: usize) -> bool {
-    let mut todo = vec![a];
-    let mut seen = HashSet::new();
-
-    while let Some(block) = todo.pop() {
-        for child in get_children(func, block) {
-            if child == b {
-                return true;
-            } else if !seen.contains(&b) {
-                seen.insert(b);
-                todo.push(b);
-            }
-        }
-    }
-
-    return false;
-}
-
-/// Do all path to <b> go throght <a>?
-fn dominates(f: &Func, a: usize, b: usize) -> bool {
-    return true;
-}
-
-/// Does a child of <block> point towards <block>?
-fn is_loop(f: &Func, block: usize) -> bool {
-    for inst in &f.ir.insts[f.ir.blocks[block]..] {
-        match inst {
-            Inst::Branch(_, (a, b)) => {
-                if *a == block || *b == block {
-                    return true;
-                }
-            }
-            Inst::JumpTo(target, _) => {
-                if *target == block {
-                    return true;
-                }
-            }
-            _ => {}
-        }
-    }
-
-    return false;
 }
 
 fn reloop(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<usize>> {

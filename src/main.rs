@@ -2,25 +2,42 @@ mod ir;
 mod lexer;
 mod module;
 mod parser;
-mod value;
-mod wasm;
-
 mod server;
-
-pub mod core {
-    pub use crate::module::Module;
-    pub use crate::value::*;
-    pub use crate::wasm::exec_wasm;
-}
+mod targets;
+mod utils;
+mod value;
 
 fn main() {
-    server::start()
+    if true {
+        test()
+    } else {
+        server::start()
+    }
+}
+
+fn test() {
+    println!(
+        "{}",
+        std::str::from_utf8(
+            &targets::wasm::compile(
+                "
+                    fn main() I32 {
+                        return 1
+                    }
+                "
+            )
+            .unwrap()
+        )
+        .unwrap()
+    );
 }
 
 #[cfg(test)]
 #[rustfmt::skip]
 mod tests_ir {
-    use crate::core::*;
+    use crate::module::Module;
+    use crate::value::*;
+    use crate::targets::wasm::exec_wasm;
 
     fn test_interpreter(src: &str, value: Value) {
         assert_eq!(Module::from_src(src).exec("main", vec![]), value);

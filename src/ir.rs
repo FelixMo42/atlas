@@ -3,8 +3,8 @@ use crate::parser::*;
 use crate::value::*;
 
 type Var = usize;
-type FuncId = usize;
-type Block = usize;
+pub type FuncId = usize;
+pub type Block = usize;
 
 const NO_VALUE: Var = usize::MAX;
 

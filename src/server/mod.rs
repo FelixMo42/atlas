@@ -95,7 +95,7 @@ fn handle_connection(mut request: Request) {
         }
         "POST /parse HTTP/1.1" => {
             let content = request.content().to_string();
-            match crate::wasm::compile(content.as_str()) {
+            match crate::targets::wasm::compile(content.as_str()) {
                 Ok(wat) => ("HTTP/1.1 200 OK", from_utf8(&wat).unwrap().to_string()),
                 Err(..) => ("HTTP/1.1 200 OK", "error".to_string()),
             }
