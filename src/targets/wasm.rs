@@ -320,7 +320,9 @@ fn add_i32_const(f: &mut Vec<u8>, value: i32) {
 
 fn add_f64_const(f: &mut Vec<u8>, value: f64) {
     f.push(0x44);
-    unimplemented!();
+    for byte in value.to_le_bytes() {
+        f.push(byte);
+    }
 }
 
 fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
