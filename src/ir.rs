@@ -40,6 +40,7 @@ impl Func {
         };
     }
 
+    #[allow(dead_code)]
     pub fn log(&self) {
         println!("function {} ():", self.name);
         self.ir.log();

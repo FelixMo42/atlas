@@ -5,72 +5,173 @@ use crate::value::*;
 
 use std::io::Write;
 
-pub fn exec_wasm<T: wasmtime::WasmResults>(src: &str) -> T {
-    let wat = compile(src).unwrap();
-
-    println!("{}", std::str::from_utf8(&wat).unwrap());
-
-    let engine = wasmtime::Engine::default();
-    let module = wasmtime::Module::new(&engine, wat).unwrap();
-
-    let mut store = wasmtime::Store::new(&engine, 4);
-    let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
-    let main = instance
-        .get_typed_func::<(), T, _>(&mut store, "main")
-        .unwrap();
-
-    // And finally we can call the wasm!
-    return main.call(&mut store, ()).unwrap();
-}
-
-/// transpile atlas to wat file
-pub fn compile(src: &str) -> std::io::Result<Vec<u8>> {
-    fn rep(t: Type) -> String {
-        match t {
-            Type::F64 => "f64",
+impl Type {
+    fn to_wat(&self) -> &str {
+        match self {
             Type::I32 => "i32",
             Type::Bool => "i32",
+            Type::F64 => "f64",
         }
-        .to_string()
     }
 
-    let module = Module::from_src(src);
-    let mut f = Vec::new();
-
-    writeln!(f, "(module")?;
-
-    for (i, func) in module.funcs.iter().enumerate() {
-        writeln!(f, "\t(func ${}", i)?;
-        writeln!(f, "\t\t(export \"{}\")", func.name)?;
-
-        // add params
-        for var in 0..func.num_params {
-            writeln!(f, "\t\t(param ${var} {})", rep(func.ir.var_type[var]))?;
+    fn to_wasm(&self) -> u8 {
+        match self {
+            Type::Bool | Type::I32 => 0x7F,
+            Type::F64 => 0x7C,
         }
-
-        // result type
-        writeln!(f, "\t\t(result {})", rep(func.return_type))?;
-
-        // add locals
-        for var in func.num_params..func.ir.num_vars {
-            writeln!(f, "\t\t(local ${var} {})", rep(func.ir.var_type[var]))?;
-        }
-
-        reloop(&mut f, func, 0)?;
-
-        match func.return_type {
-            Type::I32 => writeln!(f, "i32.const {}", i32::MAX)?,
-            Type::Bool => writeln!(f, "i32.const {}", i32::MAX)?,
-            Type::F64 => writeln!(f, "f64.const {}", f64::MAX)?,
-        };
-
-        writeln!(f, "\t)")?;
     }
-
-    writeln!(f, ")")?;
-
-    return Ok(f);
 }
+
+impl<'a> Module<'a> {
+    pub fn to_wat(&self) -> std::io::Result<String> {
+        let mut b = vec![];
+
+        // open module
+        writeln!(b, "(module")?;
+
+        // add the funcs
+        for (i, func) in self.funcs.iter().enumerate() {
+            // open function
+            writeln!(b, "\t(func ${}", i)?;
+
+            // all functions should be exported
+            writeln!(b, "\t\t(export \"{}\")", func.name)?;
+
+            // add params
+            for var in 0..func.num_params {
+                writeln!(b, "\t\t(param ${var} {})", func.ir.var_type[var].to_wat())?;
+            }
+
+            // result type
+            writeln!(b, "\t\t(result {})", func.return_type.to_wat())?;
+
+            // add locals
+            for var in func.num_params..func.ir.num_vars {
+                writeln!(b, "\t\t(local ${var} {})", func.ir.var_type[var].to_wat())?;
+            }
+
+            // add code
+            reloop(&mut b, func, 0)?;
+
+            // we need to add a return value at the end to satify the checks
+            match func.return_type {
+                Type::I32 => writeln!(b, "i32.const {}", i32::MAX)?,
+                Type::Bool => writeln!(b, "i32.const {}", i32::MAX)?,
+                Type::F64 => writeln!(b, "f64.const {}", f64::MAX)?,
+            };
+
+            // close function
+            writeln!(b, "\t)")?;
+        }
+
+        // close module
+        writeln!(b, ")")?;
+
+        return Ok(String::from_utf8(b).unwrap());
+    }
+
+    pub fn to_wasm(&self) -> std::io::Result<Vec<u8>> {
+        let mut b = vec![];
+
+        write!(b, "\x00\x61\x73\x6D")?; // magic number
+        write!(b, "\x01\x00\x00\x00")?; // version number
+
+        add_section(&mut b, WASM_TYPE_SECTION, |b| {
+            leb128(b, self.funcs.len()); // how many types?
+
+            for func in &self.funcs {
+                b.push(0x60);
+
+                leb128(b, func.num_params); // how many params?
+                for i in 0..func.num_params {
+                    b.push(func.ir.var_type[i].to_wasm());
+                }
+
+                leb128(b, 1); // how many values returns?
+                b.push(func.return_type.to_wasm());
+            }
+        });
+
+        add_section(&mut b, WASM_FUNCTION_SECTION, |b| {
+            leb128(b, self.funcs.len()); // how many functions?
+
+            for i in 0..self.funcs.len() {
+                leb128(b, i);
+            }
+        });
+
+        add_section(&mut b, WASM_EXPORT_SECTION, |b| {
+            leb128(b, self.funcs.len()); // how many functions exported?
+
+            for i in 0..self.funcs.len() {
+                // write the name
+                let name = &self.funcs[i].name;
+                leb128(b, name.as_bytes().len());
+                write!(b, "{}", name);
+
+                b.push(0x00); // were exporting a function
+                leb128(b, i); // function id
+            }
+        });
+
+        add_section(&mut b, WASM_CODE_SECTION, |b| {
+            leb128(b, self.funcs.len()); // how many functions?
+
+            for func in &self.funcs {
+                write_with_length(b, |b| {
+                    leb128(b, func.ir.num_vars); // how many locals?
+                    for i in 0..func.ir.num_vars {
+                        leb128(b, 1); // how many of this type
+                        b.push(func.ir.var_type[i].to_wasm()); // local type
+                    }
+
+                    // body
+                    reloop_bin(b, func, 0);
+
+                    // end inst
+                    b.push(0x0B);
+                });
+            }
+        });
+
+        return Ok(b);
+    }
+}
+
+fn write_with_length(b: &mut Vec<u8>, builder: impl FnOnce(&mut Vec<u8>) -> ()) {
+    let mut content = vec![];
+    builder(&mut content);
+    leb128(b, content.len());
+    b.append(&mut content);
+}
+
+fn add_section(b: &mut Vec<u8>, section_id: u8, builder: impl FnOnce(&mut Vec<u8>) -> ()) {
+    b.push(section_id);
+    write_with_length(b, builder);
+}
+
+fn leb128(b: &mut Vec<u8>, mut n: usize) {
+    loop {
+        let mut byte: u8 = (n & 0b1111111) as u8;
+
+        n >>= 7;
+
+        if n != 0 {
+            byte |= 0b10000000;
+        }
+
+        b.push(byte);
+
+        if n == 0 {
+            break;
+        }
+    }
+}
+
+const WASM_TYPE_SECTION: u8 = 1;
+const WASM_FUNCTION_SECTION: u8 = 3;
+const WASM_EXPORT_SECTION: u8 = 7;
+const WASM_CODE_SECTION: u8 = 10;
 
 fn reloop(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<usize>> {
     let next_block = if is_loop(func, block) {
@@ -198,6 +299,157 @@ fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Opti
                     return reloop(f, func, *target);
                 } else {
                     return Ok(Some(*target));
+                }
+            }
+        };
+    }
+
+    panic!("Block didn't end!")
+}
+
+fn reloop_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
+    let next_block = if is_loop(func, block) {
+        f.push(0x03);
+        let next_block = add_block_bin(f, func, block);
+        f.push(0x0B);
+        next_block
+    } else {
+        add_block_bin(f, func, block)
+    };
+
+    return next_block;
+}
+
+fn set_local(f: &mut Vec<u8>, local: usize) {
+    f.push(0x21);
+    leb128(f, local);
+}
+
+fn get_local(f: &mut Vec<u8>, local: usize) {
+    f.push(0x20);
+    leb128(f, local);
+}
+
+fn add_i32_const(f: &mut Vec<u8>, value: i32) {
+    f.push(0x41);
+    leb128(f, value as usize);
+}
+
+fn add_f64_const(f: &mut Vec<u8>, value: f64) {
+    f.push(0x44);
+    unimplemented!();
+}
+
+fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
+    for inst in &func.ir.insts[func.ir.blocks[block]..] {
+        match inst {
+            Inst::Call(var, call, args) => {
+                for arg in args {
+                    get_local(f, *arg);
+                }
+                f.push(0x10); // func call inst
+                leb128(f, *call);
+                set_local(f, *var);
+            }
+            Inst::Op(var, op, a, b) => {
+                get_local(f, *a);
+                get_local(f, *b);
+                match (op, func.ir.var_type[*a]) {
+                    (Op::Add, Type::I32) => f.push(0x7C),
+                    (Op::Sub, Type::I32) => f.push(0x7D),
+                    (Op::Mul, Type::I32) => f.push(0x7E),
+                    (Op::Div, Type::I32) => f.push(0x7F),
+
+                    (Op::Add, Type::F64) => f.push(0xA0),
+                    (Op::Sub, Type::F64) => f.push(0xA1),
+                    (Op::Mul, Type::F64) => f.push(0xA2),
+                    (Op::Div, Type::F64) => f.push(0xA3),
+
+                    (Op::Eq, Type::Bool) => f.push(0x46),
+                    (Op::Eq, Type::I32) => f.push(0x46),
+                    (Op::Eq, Type::F64) => f.push(0x61),
+
+                    (Op::Ne, Type::Bool) => f.push(0x47),
+                    (Op::Ne, Type::I32) => f.push(0x47),
+                    (Op::Ne, Type::F64) => f.push(0x62),
+
+                    (Op::Ge, Type::I32) => f.push(0x4E),
+                    (Op::Gt, Type::I32) => f.push(0x4A),
+                    (Op::Le, Type::I32) => f.push(0x4C),
+                    (Op::Lt, Type::I32) => f.push(0x48),
+
+                    (Op::Ge, Type::F64) => f.push(0x66),
+                    (Op::Gt, Type::F64) => f.push(0x64),
+                    (Op::Le, Type::F64) => f.push(0x65),
+                    (Op::Lt, Type::F64) => f.push(0x63),
+
+                    _ => unimplemented!(),
+                }
+                set_local(f, *var)
+            }
+            Inst::UOp(var, op, a) => {
+                match op {
+                    UOp::Neg => match func.ir.var_type[*a] {
+                        Type::I32 => {
+                            add_i32_const(f, 0);
+                            get_local(f, *a);
+                            f.push(0x6B); // i32.sub
+                        }
+                        Type::F64 => {
+                            get_local(f, *a);
+                            f.push(0x9A); // f64.neg
+                        }
+                        _ => unimplemented!(),
+                    },
+                    UOp::Not => unimplemented!(),
+                }
+                set_local(f, *var)
+            }
+            Inst::Const(var, val) => {
+                match val {
+                    Value::Bool(true) => add_i32_const(f, 1),
+                    Value::Bool(false) => add_i32_const(f, 0),
+                    Value::I32(val) => add_i32_const(f, *val),
+                    Value::F64(val) => add_f64_const(f, *val),
+                    _ => unreachable!(),
+                }
+                set_local(f, *var);
+            }
+            Inst::Return(var) => {
+                get_local(f, *var);
+                f.push(0x0F);
+
+                return None;
+            }
+            Inst::Branch(cond, (a, b)) => {
+                get_local(f, *cond); // if
+                f.push(0x04); // then
+                let a = reloop_bin(f, func, *a);
+                f.push(0x05); // else
+                let b = reloop_bin(f, func, *b);
+                f.push(0x0B); // end
+
+                return match (a, b) {
+                    _ => None,
+                };
+            }
+            Inst::JumpTo(target, args) => {
+                // pass the paramaters
+                let start = func.ir.block_params[*target].0;
+                for i in 0..args.len() {
+                    get_local(f, args[i]);
+                    set_local(f, start + i);
+                }
+
+                // move on to the next block
+                if is_parent_of(func, *target, block) {
+                    f.push(0x0C);
+                    leb128(f, 1);
+                    return None;
+                } else if dominates(func, block, *target) {
+                    return reloop_bin(f, func, *target);
+                } else {
+                    return Some(*target);
                 }
             }
         };

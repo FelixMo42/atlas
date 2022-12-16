@@ -58,7 +58,7 @@ pub fn is_loop(f: &Func, block: Block) -> bool {
 }
 
 /// Get the final instruction of a block.
-fn get_exit_inst(func: &Func, block: Block) -> Inst {
+pub fn get_exit_inst(func: &Func, block: Block) -> Inst {
     for inst in &func.ir.insts[func.ir.blocks[block]..] {
         match inst {
             Inst::Return(..) | Inst::Branch(..) | Inst::JumpTo(..) => return inst.clone(),

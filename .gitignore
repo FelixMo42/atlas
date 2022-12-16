@@ -1,1 +1,5 @@
+# rust stuff
 /target
+
+# my stuff
+out.wasm

@@ -1,3 +1,5 @@
+use std::io::Write;
+
 mod ir;
 mod lexer;
 mod module;
@@ -16,20 +18,20 @@ fn main() {
 }
 
 fn test() {
-    println!(
-        "{}",
-        std::str::from_utf8(
-            &targets::wasm::compile(
-                "
-                    fn main() I32 {
-                        return 1
-                    }
-                "
-            )
-            .unwrap()
-        )
+    let src = "
+        fn main() I32 {
+            return 1 + 1
+        }
+    ";
+
+    let module = module::Module::from_src(src);
+
+    println!("{}", module.to_wat().unwrap());
+    println!("= {:?}", module.exec("main", vec![]));
+
+    std::fs::File::create("./out.wasm")
         .unwrap()
-    );
+        .write(&module.to_wasm().unwrap());
 }
 
 #[cfg(test)]
@@ -37,25 +39,41 @@ fn test() {
 mod tests_ir {
     use crate::module::Module;
     use crate::value::*;
-    use crate::targets::wasm::exec_wasm;
 
-    fn test_interpreter(src: &str, value: Value) {
-        assert_eq!(Module::from_src(src).exec("main", vec![]), value);
+    fn test_interpreter(module: &Module, value: Value) {
+        assert_eq!(module.exec("main", vec![]), value);
     }
 
-    fn test_wasm(src: &str, value: Value) {
+    fn test_wasm(module: &Module, value: Value) {
         match value {
-            Value::F64(val) => assert_eq!(exec_wasm::<f64>(src), val),
-            Value::I32(val) => assert_eq!(exec_wasm::<i32>(src), val),
-            Value::Bool(true) => assert_eq!(exec_wasm::<i32>(src), 1),
-            Value::Bool(false) => assert_eq!(exec_wasm::<i32>(src), 0),
+            Value::F64(val) => assert_eq!(exec_wasm::<f64>(module), val),
+            Value::I32(val) => assert_eq!(exec_wasm::<i32>(module), val),
+            Value::Bool(true) => assert_eq!(exec_wasm::<i32>(module), 1),
+            Value::Bool(false) => assert_eq!(exec_wasm::<i32>(module), 0),
             _ => {}
         }
     }
 
+    fn exec_wasm<T: wasmtime::WasmResults>(module: &Module) -> T {
+        let wat = module.to_wasm().unwrap();
+
+        let engine = wasmtime::Engine::default();
+        let module = wasmtime::Module::new(&engine, wat).unwrap();
+
+        let mut store = wasmtime::Store::new(&engine, 4);
+        let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
+        let main = instance
+            .get_typed_func::<(), T, _>(&mut store, "main")
+            .unwrap();
+
+        // And finally we can call the wasm!
+        return main.call(&mut store, ()).unwrap();
+    }
+
     fn test(src: &str, value: Value) {
-        test_interpreter(src, value);
-        test_wasm(src, value);
+        let module = &Module::from_src(src);
+        test_interpreter(module, value);
+        test_wasm(module, value);
     }
 
     fn test_eval(src: &str, value: Value) {
