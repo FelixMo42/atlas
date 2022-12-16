@@ -129,6 +129,10 @@ impl<'a> Module<'a> {
                     // body
                     reloop_bin(b, func, 0);
 
+                    // Tell wasm this is unreachable so it dosent complain
+                    // about not having values in the stack.
+                    b.push(0x00);
+
                     // end inst
                     b.push(0x0B);
                 });
@@ -293,6 +297,7 @@ fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Opti
 fn reloop_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
     let next_block = if is_loop(func, block) {
         f.push(0x03);
+        f.push(0x40); // block type, empty for now
         let next_block = add_block_bin(f, func, block);
         f.push(0x0B);
         next_block
@@ -340,10 +345,10 @@ fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
                 get_local(f, *a);
                 get_local(f, *b);
                 match (op, func.ir.var_type[*a]) {
-                    (Op::Add, Type::I32) => f.push(0x7C),
-                    (Op::Sub, Type::I32) => f.push(0x7D),
-                    (Op::Mul, Type::I32) => f.push(0x7E),
-                    (Op::Div, Type::I32) => f.push(0x7F),
+                    (Op::Add, Type::I32) => f.push(0x6A),
+                    (Op::Sub, Type::I32) => f.push(0x6B),
+                    (Op::Mul, Type::I32) => f.push(0x6C),
+                    (Op::Div, Type::I32) => f.push(0x6D),
 
                     (Op::Add, Type::F64) => f.push(0xA0),
                     (Op::Sub, Type::F64) => f.push(0xA1),
@@ -409,6 +414,7 @@ fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
             Inst::Branch(cond, (a, b)) => {
                 get_local(f, *cond); // if
                 f.push(0x04); // then
+                f.push(0x40); // block type, empty for now
                 let a = reloop_bin(f, func, *a);
                 f.push(0x05); // else
                 let b = reloop_bin(f, func, *b);

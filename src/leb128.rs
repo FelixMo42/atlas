@@ -35,7 +35,7 @@ impl Leb128 for i32 {
                 byte &= !CONTINUATION_BIT;
             } else {
                 self >>= 1;
-                byte |= !CONTINUATION_BIT;
+                byte |= CONTINUATION_BIT;
             }
 
             b.push(byte);

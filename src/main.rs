@@ -21,7 +21,7 @@ fn main() {
 fn test() {
     let src = "
         fn main() I32 {
-            return 1
+            return if true 1 else 2
         }
     ";
 
