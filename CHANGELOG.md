@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.2
+
+### Fixed
+
+- builds, oops
+
 ## v0.3.1
 
 ### Added

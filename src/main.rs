@@ -53,7 +53,7 @@ mod tests_ir {
     }
 
     fn exec_wasm<T: wasmtime::WasmResults>(module: &Module) -> T {
-        let wat = module.to_wasm().unwrap();
+        let wat = module.to_wasm();
 
         let engine = wasmtime::Engine::default();
         let module = wasmtime::Module::new(&engine, wat).unwrap();
