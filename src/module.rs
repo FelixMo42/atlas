@@ -45,6 +45,7 @@ impl<'a> Module<'a> {
         self.scope.get(name).map(|func_id| &self.funcs[func_id])
     }
 
+    #[allow(dead_code)]
     pub fn log(&self) {
         for func in &self.funcs {
             func.log();

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.1
+
+### Added
+
+- added cli
+- added dev server
+- added wasm binary output
+
 ## v0.3.0
 
 ### Added

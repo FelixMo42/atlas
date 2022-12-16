@@ -71,11 +71,11 @@ impl<'a> Module<'a> {
         return Ok(String::from_utf8(b).unwrap());
     }
 
-    pub fn to_wasm(&self) -> std::io::Result<Vec<u8>> {
+    pub fn to_wasm(&self) -> Vec<u8> {
         let mut b = vec![];
 
-        write!(b, "\x00\x61\x73\x6D")?; // magic number
-        write!(b, "\x01\x00\x00\x00")?; // version number
+        b.append(&mut vec![0x00, 0x61, 0x73, 0x6D]); // magic number
+        b.append(&mut vec![0x01, 0x00, 0x00, 0x00]); // version number
 
         add_section(&mut b, WASM_TYPE_SECTION, |b| {
             self.funcs.len().write_leb128(b); // how many types?
@@ -108,7 +108,9 @@ impl<'a> Module<'a> {
                 // write the name
                 let name = &self.funcs[i].name;
                 name.as_bytes().len().write_leb128(b);
-                write!(b, "{}", name);
+                for byte in name.bytes() {
+                    b.push(byte);
+                }
 
                 b.push(0x00); // were exporting a function
                 i.write_leb128(b); // function id
@@ -139,7 +141,7 @@ impl<'a> Module<'a> {
             }
         });
 
-        return Ok(b);
+        return b;
     }
 }
 

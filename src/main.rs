@@ -10,29 +10,26 @@ mod targets;
 mod utils;
 mod value;
 
-fn main() {
-    if true {
-        test()
-    } else {
-        server::start()
-    }
-}
+fn main() -> std::io::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
 
-fn test() {
-    let src = "
-        fn main() I32 {
-            return if true 1 else 2
+    match &args.iter().map(|s| s.as_str()).collect::<Vec<&str>>()[1..] {
+        ["server"] => server::start(),
+        ["run", name] => {
+            let src = std::fs::read_to_string(name)?;
+            let module = module::Module::from_src(&src);
+            println!("{:?}", module.exec("main", vec![]));
         }
-    ";
+        ["to-wasm", name, out] => {
+            let src = std::fs::read_to_string(name)?;
+            let module = module::Module::from_src(&src);
+            let mut file = std::fs::File::create(out)?;
+            file.write(&module.to_wasm())?;
+        }
+        _ => println!("ERR unknown command"),
+    };
 
-    let module = module::Module::from_src(src);
-
-    println!("{}", module.to_wat().unwrap());
-    println!("= {:?}", module.exec("main", vec![]));
-
-    std::fs::File::create("./out.wasm")
-        .unwrap()
-        .write(&module.to_wasm().unwrap());
+    return Ok(());
 }
 
 #[cfg(test)]

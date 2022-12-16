@@ -113,20 +113,6 @@ impl Value {
             _ => panic!("expected boolean, got not that"),
         }
     }
-
-    pub fn as_i32(&self) -> i32 {
-        match self {
-            Value::I32(num) => *num,
-            _ => panic!("expected i32, got not that"),
-        }
-    }
-
-    pub fn as_f64(&self) -> f64 {
-        match self {
-            Value::F64(num) => *num,
-            _ => panic!("expected i32, got not that"),
-        }
-    }
 }
 
 impl Value {
