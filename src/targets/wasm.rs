@@ -1,4 +1,5 @@
 use crate::ir::*;
+use crate::leb128::*;
 use crate::module::*;
 use crate::utils::*;
 use crate::value::*;
@@ -77,51 +78,51 @@ impl<'a> Module<'a> {
         write!(b, "\x01\x00\x00\x00")?; // version number
 
         add_section(&mut b, WASM_TYPE_SECTION, |b| {
-            leb128(b, self.funcs.len()); // how many types?
+            self.funcs.len().write_leb128(b); // how many types?
 
             for func in &self.funcs {
                 b.push(0x60);
 
-                leb128(b, func.num_params); // how many params?
+                func.num_params.write_leb128(b); // how many params?
                 for i in 0..func.num_params {
                     b.push(func.ir.var_type[i].to_wasm());
                 }
 
-                leb128(b, 1); // how many values returns?
+                1usize.write_leb128(b); // how many values returns?
                 b.push(func.return_type.to_wasm());
             }
         });
 
         add_section(&mut b, WASM_FUNCTION_SECTION, |b| {
-            leb128(b, self.funcs.len()); // how many functions?
+            self.funcs.len().write_leb128(b); // how many functions?
 
             for i in 0..self.funcs.len() {
-                leb128(b, i);
+                i.write_leb128(b);
             }
         });
 
         add_section(&mut b, WASM_EXPORT_SECTION, |b| {
-            leb128(b, self.funcs.len()); // how many functions exported?
+            self.funcs.len().write_leb128(b); // how many functions exported?
 
             for i in 0..self.funcs.len() {
                 // write the name
                 let name = &self.funcs[i].name;
-                leb128(b, name.as_bytes().len());
+                name.as_bytes().len().write_leb128(b);
                 write!(b, "{}", name);
 
                 b.push(0x00); // were exporting a function
-                leb128(b, i); // function id
+                i.write_leb128(b); // function id
             }
         });
 
         add_section(&mut b, WASM_CODE_SECTION, |b| {
-            leb128(b, self.funcs.len()); // how many functions?
+            self.funcs.len().write_leb128(b); // how many functions?
 
             for func in &self.funcs {
                 write_with_length(b, |b| {
-                    leb128(b, func.ir.num_vars); // how many locals?
+                    func.ir.num_vars.write_leb128(b); // how many locals?
                     for i in 0..func.ir.num_vars {
-                        leb128(b, 1); // how many of this type
+                        1usize.write_leb128(b); // how many of this type
                         b.push(func.ir.var_type[i].to_wasm()); // local type
                     }
 
@@ -141,31 +142,13 @@ impl<'a> Module<'a> {
 fn write_with_length(b: &mut Vec<u8>, builder: impl FnOnce(&mut Vec<u8>) -> ()) {
     let mut content = vec![];
     builder(&mut content);
-    leb128(b, content.len());
+    content.len().write_leb128(b);
     b.append(&mut content);
 }
 
 fn add_section(b: &mut Vec<u8>, section_id: u8, builder: impl FnOnce(&mut Vec<u8>) -> ()) {
     b.push(section_id);
     write_with_length(b, builder);
-}
-
-fn leb128(b: &mut Vec<u8>, mut n: usize) {
-    loop {
-        let mut byte: u8 = (n & 0b1111111) as u8;
-
-        n >>= 7;
-
-        if n != 0 {
-            byte |= 0b10000000;
-        }
-
-        b.push(byte);
-
-        if n == 0 {
-            break;
-        }
-    }
 }
 
 const WASM_TYPE_SECTION: u8 = 1;
@@ -322,17 +305,17 @@ fn reloop_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
 
 fn set_local(f: &mut Vec<u8>, local: usize) {
     f.push(0x21);
-    leb128(f, local);
+    local.write_leb128(f);
 }
 
 fn get_local(f: &mut Vec<u8>, local: usize) {
     f.push(0x20);
-    leb128(f, local);
+    local.write_leb128(f);
 }
 
 fn add_i32_const(f: &mut Vec<u8>, value: i32) {
     f.push(0x41);
-    leb128(f, value as usize);
+    value.write_leb128(f);
 }
 
 fn add_f64_const(f: &mut Vec<u8>, value: f64) {
@@ -348,7 +331,7 @@ fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
                     get_local(f, *arg);
                 }
                 f.push(0x10); // func call inst
-                leb128(f, *call);
+                call.write_leb128(f);
                 set_local(f, *var);
             }
             Inst::Op(var, op, a, b) => {
@@ -444,7 +427,7 @@ fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
                 // move on to the next block
                 if is_parent_of(func, *target, block) {
                     f.push(0x0C);
-                    leb128(f, 1);
+                    1usize.write_leb128(f);
                     return None;
                 } else if dominates(func, block, *target) {
                     return reloop_bin(f, func, *target);

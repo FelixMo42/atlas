@@ -1,6 +1,7 @@
 use std::io::Write;
 
 mod ir;
+mod leb128;
 mod lexer;
 mod module;
 mod parser;
@@ -20,7 +21,7 @@ fn main() {
 fn test() {
     let src = "
         fn main() I32 {
-            return 1 + 1
+            return 1
         }
     ";
 
