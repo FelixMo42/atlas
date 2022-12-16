@@ -105,12 +105,21 @@ fn main() {
 - [x] step 3: add linear memory (a la wasm)
 - [x] step 4: types!
 - [x] step 5: compile to wasm
-- [ ] step 6: dev server
+- [x] step 6: dev server
 - [ ] step 7: bootstraps baby
 
 ## How do I use it?
 
-You want to use this? Why?
+The only dependency is cargo.
 
-But, sorry. No can do. This entire language is built around satisfing my unit
-test. There is no CLI. Not yet (duh duh dun)!
+Complile to wasm
+`cargo run to-wasm <in> <out>`
+
+Run the dev server
+`cargo run server`
+
+Run a file using ir
+`cargo run <file>`
+
+Run the unit test
+`cargo test`
