@@ -53,15 +53,8 @@ impl<'a> Module<'a> {
 
             // add code
             let mut builder = WatBuilder::new();
-            reloop(&mut builder, func, 0);
+            build(&mut builder, func);
             b.append(&mut builder.buffer);
-
-            // we need to add a return value at the end to satify the checks
-            match func.return_type {
-                Type::I32 => writeln!(b, "i32.const {}", i32::MAX)?,
-                Type::Bool => writeln!(b, "i32.const {}", i32::MAX)?,
-                Type::F64 => writeln!(b, "f64.const {}", f64::MAX)?,
-            };
 
             // close function
             writeln!(b, "\t)")?;
@@ -132,12 +125,8 @@ impl<'a> Module<'a> {
 
                     // add code
                     let mut builder = WasmBuilder::new();
-                    reloop(&mut builder, func, 0);
+                    build(&mut builder, func);
                     b.append(&mut builder.buffer);
-
-                    // Tell wasm this is unreachable so it dosent complain
-                    // about not having values in the stack.
-                    b.push(0x00);
 
                     // end inst
                     b.push(0x0B);
@@ -165,6 +154,11 @@ const WASM_TYPE_SECTION: u8 = 1;
 const WASM_FUNCTION_SECTION: u8 = 3;
 const WASM_EXPORT_SECTION: u8 = 7;
 const WASM_CODE_SECTION: u8 = 10;
+
+fn build(builder: &mut impl WasmOrWatBuilder, func: &Func) {
+    reloop(builder, func, 0);
+    builder.add_inst(WasmInst::Unreachable)
+}
 
 fn reloop(f: &mut impl WasmOrWatBuilder, func: &Func, block: usize) -> Option<usize> {
     let next_block = if is_loop(func, block) {
@@ -390,6 +384,8 @@ impl WasmOrWatBuilder for WasmBuilder {
             WasmInst::F64LtS => self.buffer.push(0x63),
 
             WasmInst::F64Neg => self.buffer.push(0x9A),
+
+            WasmInst::Unreachable => self.buffer.push(0x00),
         };
     }
 }
@@ -480,6 +476,7 @@ impl WasmOrWatBuilder for WatBuilder {
             WasmInst::I32LtS => writeln!(self.buffer, "i32.lt_s"),
             WasmInst::F64LtS => writeln!(self.buffer, "f64.lt_s"),
             WasmInst::F64Neg => writeln!(self.buffer, "f64.neg"),
+            WasmInst::Unreachable => writeln!(self.buffer, "unreachable"),
         };
     }
 }
@@ -527,4 +524,5 @@ enum WasmInst {
     I32LtS,
     F64LtS,
     F64Neg,
+    Unreachable,
 }
