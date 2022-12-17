@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.3
+
+### Added
+
+- dev server shows wasm result
+
+### Fixed
+
+- fix differences between wasm and wat output
+
 ## v0.3.2
 
 ### Fixed
