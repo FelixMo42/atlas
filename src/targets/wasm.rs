@@ -26,31 +26,31 @@ impl Type {
 const TAB: &'static str = "\t";
 
 impl<'a> Module<'a> {
-    pub fn to_wat(&self) -> std::io::Result<String> {
+    pub fn to_wat(&self) -> Vec<u8> {
         let mut b = vec![];
 
         // open module
-        writeln!(b, "(module")?;
+        writeln!(b, "(module");
 
         // add the funcs
         for (i, func) in self.funcs.iter().enumerate() {
             // open function
-            writeln!(b, "(func ${}", i)?;
+            writeln!(b, "(func ${}", i);
 
             // all functions should be exported
-            writeln!(b, "{TAB}(export \"{}\")", func.name)?;
+            writeln!(b, "{TAB}(export \"{}\")", func.name);
 
             // add params
             for var in 0..func.num_params {
-                writeln!(b, "{TAB}(param ${var} {})", func.ir.var_type[var].to_wat())?;
+                writeln!(b, "{TAB}(param ${var} {})", func.ir.var_type[var].to_wat());
             }
 
             // result type
-            writeln!(b, "{TAB}(result {})", func.return_type.to_wat())?;
+            writeln!(b, "{TAB}(result {})", func.return_type.to_wat());
 
             // add locals
             for var in func.num_params..func.ir.num_vars {
-                writeln!(b, "{TAB}(local ${var} {})", func.ir.var_type[var].to_wat())?;
+                writeln!(b, "{TAB}(local ${var} {})", func.ir.var_type[var].to_wat());
             }
 
             // add code
@@ -59,13 +59,13 @@ impl<'a> Module<'a> {
             b.append(&mut builder.buffer);
 
             // close function
-            writeln!(b, ")")?;
+            writeln!(b, ")");
         }
 
         // close module
-        writeln!(b, ")")?;
+        writeln!(b, ")");
 
-        return Ok(String::from_utf8(b).unwrap());
+        return b;
     }
 
     pub fn to_wasm(&self) -> Vec<u8> {

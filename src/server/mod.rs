@@ -88,28 +88,29 @@ impl Request {
 }
 
 fn handle_connection(mut request: Request) {
-    let (status_line, contents) = match request.header() {
+    let (status_line, mut contents) = match request.header() {
         "GET / HTTP/1.1" => {
-            let content = fs::read_to_string("pub/index.html").unwrap();
+            let content = fs::read("pub/index.html").unwrap();
             ("HTTP/1.1 200 OK", content)
         }
-        "POST /parse HTTP/1.1" => {
+        "POST /api/to_wat HTTP/1.1" => {
             let content = request.content().to_string();
             let module = crate::module::Module::from_src(&content);
-            match module.to_wat() {
-                Ok(wat) => ("HTTP/1.1 200 OK", wat),
-                Err(..) => ("HTTP/1.1 200 OK", "error".to_string()),
-            }
+            ("HTTP/1.1 200 OK", module.to_wat())
+        }
+        "POST /api/to_wasm HTTP/1.1" => {
+            let content = request.content().to_string();
+            let module = crate::module::Module::from_src(&content);
+            ("HTTP/1.1 200 OK", module.to_wasm())
         }
         _ => {
-            let content = fs::read_to_string("pub/404.html").unwrap();
+            let content = fs::read("pub/404.html").unwrap();
             ("HTTP/1.1 404 NOT FOUND", content)
         }
     };
 
-    // request.content();
-
     let length = contents.len();
-    let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
-    request.stream.write_all(response.as_bytes()).unwrap();
+    let mut response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n").into_bytes();
+    response.append(&mut contents);
+    request.stream.write_all(&response).unwrap();
 }

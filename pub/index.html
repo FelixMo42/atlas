@@ -72,22 +72,46 @@
 <body>
     <div id="root" class="row">
         <textarea id="input" class="flex"></textarea>
-        <div id="wat" class="flex pane"></div>
+        <div class="flex col">
+            <div id="wat" class="flex pane"></div>
+            <div id="output" class="pane"></div>
+        </div>
     </div>
 </body>
 
 <script type="module">
-    function parse(src) {
-        return fetch("/parse", {
+    function toWat(src) {
+        return fetch("/api/to_wat", {
             method: "POST",
             body: src
         }).then(res => res.text())
     }
 
+    function toWasm(src) {
+        return fetch("/api/to_wasm", {
+            method: "POST",
+            body: src
+        })
+    }
+
     const inputEl = document.getElementById("input")
-    const outputEl = document.getElementById("wat")
+    const watEl = document.getElementById("wat")
+    const outputEl = document.getElementById("output")
     inputEl.oninput = async () => {
-        outputEl.innerHTML = await parse(inputEl.value)
+        let src = inputEl.value
+        watEl.innerHTML = await toWat(src)
+        outputEl.innerHTML = await exec(src)
+    }
+
+    function exec(src) {
+        const importObject = {}
+
+        return toWasm(src)
+            .then((response) => response.arrayBuffer())
+            .then((bytes) => WebAssembly.instantiate(bytes, importObject))
+            .then((results) => {
+                return results.instance.exports.main();
+            });
     }
 </script>
 
