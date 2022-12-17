@@ -23,6 +23,8 @@ impl Type {
     }
 }
 
+const TAB: &'static str = "\t";
+
 impl<'a> Module<'a> {
     pub fn to_wat(&self) -> std::io::Result<String> {
         let mut b = vec![];
@@ -33,22 +35,22 @@ impl<'a> Module<'a> {
         // add the funcs
         for (i, func) in self.funcs.iter().enumerate() {
             // open function
-            writeln!(b, "\t(func ${}", i)?;
+            writeln!(b, "(func ${}", i)?;
 
             // all functions should be exported
-            writeln!(b, "\t\t(export \"{}\")", func.name)?;
+            writeln!(b, "{TAB}(export \"{}\")", func.name)?;
 
             // add params
             for var in 0..func.num_params {
-                writeln!(b, "\t\t(param ${var} {})", func.ir.var_type[var].to_wat())?;
+                writeln!(b, "{TAB}(param ${var} {})", func.ir.var_type[var].to_wat())?;
             }
 
             // result type
-            writeln!(b, "\t\t(result {})", func.return_type.to_wat())?;
+            writeln!(b, "{TAB}(result {})", func.return_type.to_wat())?;
 
             // add locals
             for var in func.num_params..func.ir.num_vars {
-                writeln!(b, "\t\t(local ${var} {})", func.ir.var_type[var].to_wat())?;
+                writeln!(b, "{TAB}(local ${var} {})", func.ir.var_type[var].to_wat())?;
             }
 
             // add code
@@ -57,7 +59,7 @@ impl<'a> Module<'a> {
             b.append(&mut builder.buffer);
 
             // close function
-            writeln!(b, "\t)")?;
+            writeln!(b, ")")?;
         }
 
         // close module
@@ -393,90 +395,104 @@ impl WasmOrWatBuilder for WasmBuilder {
 ///
 struct WatBuilder {
     buffer: Vec<u8>,
+    tab: usize,
 }
 
 impl WatBuilder {
     fn new() -> Self {
-        return WatBuilder { buffer: vec![] };
+        return WatBuilder {
+            buffer: vec![],
+            tab: 2,
+        };
+    }
+
+    fn write(&mut self, content: &str) {
+        for _ in 1..self.tab {
+            let _ = write!(self.buffer, "{TAB}");
+        }
+        let _ = writeln!(self.buffer, "{content}");
     }
 }
 
 impl WasmOrWatBuilder for WatBuilder {
     fn start_loop(&mut self) {
-        writeln!(self.buffer, "(loop");
+        self.write("(loop");
+        self.tab += 1;
     }
 
     fn if_block(&mut self) {
-        writeln!(self.buffer, "(if");
-        writeln!(self.buffer, "(then");
+        self.write("(if (then");
+        self.tab += 1;
     }
 
     fn else_block(&mut self) {
-        writeln!(self.buffer, ")");
-        writeln!(self.buffer, "(else");
+        self.tab -= 1;
+        self.write(") (else");
+        self.tab += 1;
     }
 
     fn end_block(&mut self) {
-        writeln!(self.buffer, ")");
-        writeln!(self.buffer, ")");
+        self.tab -= 1;
+        self.write("))");
     }
 
     fn close_loop(&mut self) {
-        writeln!(self.buffer, ")");
+        self.tab -= 1;
+        self.write(")");
     }
 
     fn get_local(&mut self, var: usize) {
-        writeln!(self.buffer, "get_local {var}");
+        self.write(&format!("get_local {var}"));
     }
 
     fn set_local(&mut self, var: usize) {
-        writeln!(self.buffer, "set_local {var}");
+        self.write(&format!("set_local {var}"));
     }
 
     fn add_break(&mut self, label: usize) {
-        writeln!(self.buffer, "br {label}");
+        self.write(&format!("br {label}"));
     }
 
     fn add_func_call(&mut self, func_id: usize) {
-        writeln!(self.buffer, "call {func_id}");
+        self.write(&format!("call {func_id}"));
     }
 
     fn add_const_f64(&mut self, value: f64) {
-        writeln!(self.buffer, "f64.const {value}");
+        self.write(&format!("f64.const {value}"));
     }
 
     fn add_const_i32(&mut self, value: i32) {
-        writeln!(self.buffer, "i32.const {value}");
+        self.write(&format!("i32.const {value}"));
     }
 
     fn add_return(&mut self) {
-        writeln!(self.buffer, "return");
+        self.write(&format!("return"));
     }
 
     fn add_inst(&mut self, inst: WasmInst) {
         match inst {
-            WasmInst::I32Add => writeln!(self.buffer, "i32.add"),
-            WasmInst::F64Add => writeln!(self.buffer, "f64.add"),
-            WasmInst::I32Sub => writeln!(self.buffer, "i32.sub"),
-            WasmInst::F64Sub => writeln!(self.buffer, "f64.sub"),
-            WasmInst::I32Mul => writeln!(self.buffer, "i32.mul"),
-            WasmInst::F64Mul => writeln!(self.buffer, "f64.mul"),
-            WasmInst::I32DivS => writeln!(self.buffer, "i32.div_s"),
-            WasmInst::F64DivS => writeln!(self.buffer, "f64.div_s"),
-            WasmInst::I32Eq => writeln!(self.buffer, "i32.eq"),
-            WasmInst::F64Eq => writeln!(self.buffer, "f64.eq"),
-            WasmInst::I32Ne => writeln!(self.buffer, "i32.new"),
-            WasmInst::F64Ne => writeln!(self.buffer, "f64.ne"),
-            WasmInst::I32GeS => writeln!(self.buffer, "i32.ge_s"),
-            WasmInst::F64GeS => writeln!(self.buffer, "f64.ge_s"),
-            WasmInst::I32GtS => writeln!(self.buffer, "i32.gt_s"),
-            WasmInst::F64GtS => writeln!(self.buffer, "f64.gt_s"),
-            WasmInst::I32LeS => writeln!(self.buffer, "i32.le_s"),
-            WasmInst::F64LeS => writeln!(self.buffer, "f64.le_s"),
-            WasmInst::I32LtS => writeln!(self.buffer, "i32.lt_s"),
-            WasmInst::F64LtS => writeln!(self.buffer, "f64.lt_s"),
-            WasmInst::F64Neg => writeln!(self.buffer, "f64.neg"),
-            WasmInst::Unreachable => writeln!(self.buffer, "unreachable"),
+            WasmInst::I32Add => self.write("i32.add"),
+            WasmInst::F64Add => self.write("f64.add"),
+            WasmInst::I32Sub => self.write("i32.sub"),
+            WasmInst::F64Sub => self.write("f64.sub"),
+            WasmInst::I32Mul => self.write("i32.mul"),
+            WasmInst::F64Mul => self.write("f64.mul"),
+            WasmInst::I32DivS => self.write("i32.div_s"),
+            WasmInst::F64DivS => self.write("f64.div_s"),
+            WasmInst::I32Eq => self.write("i32.eq"),
+            WasmInst::F64Eq => self.write("f64.eq"),
+            WasmInst::I32Ne => self.write("i32.new"),
+            WasmInst::F64Ne => self.write("f64.ne"),
+            WasmInst::I32GeS => self.write("i32.ge_s"),
+            WasmInst::F64GeS => self.write("f64.ge_s"),
+            WasmInst::I32GtS => self.write("i32.gt_s"),
+            WasmInst::F64GtS => self.write("f64.gt_s"),
+            WasmInst::I32LeS => self.write("i32.le_s"),
+            WasmInst::F64LeS => self.write("f64.le_s"),
+            WasmInst::I32LtS => self.write("i32.lt_s"),
+            WasmInst::F64LtS => self.write("f64.lt_s"),
+            WasmInst::F64Neg => self.write("f64.neg"),
+            WasmInst::Unreachable => self.write("unreachable"),
         };
     }
 }
