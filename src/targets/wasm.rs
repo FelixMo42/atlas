@@ -52,7 +52,9 @@ impl<'a> Module<'a> {
             }
 
             // add code
-            reloop(&mut b, func, 0)?;
+            let mut builder = WatBuilder::new();
+            reloop(&mut builder, func, 0);
+            b.append(&mut builder.buffer);
 
             // we need to add a return value at the end to satify the checks
             match func.return_type {
@@ -128,8 +130,10 @@ impl<'a> Module<'a> {
                         b.push(func.ir.var_type[i].to_wasm()); // local type
                     }
 
-                    // body
-                    reloop_bin(b, func, 0);
+                    // add code
+                    let mut builder = WasmBuilder::new();
+                    reloop(&mut builder, func, 0);
+                    b.append(&mut builder.buffer);
 
                     // Tell wasm this is unreachable so it dosent complain
                     // about not having values in the stack.
@@ -162,11 +166,11 @@ const WASM_FUNCTION_SECTION: u8 = 3;
 const WASM_EXPORT_SECTION: u8 = 7;
 const WASM_CODE_SECTION: u8 = 10;
 
-fn reloop(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<usize>> {
+fn reloop(f: &mut impl WasmOrWatBuilder, func: &Func, block: usize) -> Option<usize> {
     let next_block = if is_loop(func, block) {
-        writeln!(f, "\t(loop")?;
+        f.start_loop();
         let next_block = add_block(f, func, block);
-        writeln!(f, "\t)")?;
+        f.close_loop();
         next_block
     } else {
         add_block(f, func, block)
@@ -175,252 +179,89 @@ fn reloop(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<
     return next_block;
 }
 
-fn add_block(f: &mut Vec<u8>, func: &Func, block: usize) -> std::io::Result<Option<usize>> {
+fn add_block(f: &mut impl WasmOrWatBuilder, func: &Func, block: usize) -> Option<usize> {
     for inst in &func.ir.insts[func.ir.blocks[block]..] {
         match inst {
             Inst::Call(var, call, args) => {
                 for arg in args {
-                    writeln!(f, "\t\tget_local ${arg}")?;
+                    f.get_local(*arg);
                 }
-                writeln!(f, "\t\tcall ${call}")?;
-                writeln!(f, "\t\tset_local ${var}")?;
+                f.add_func_call(*call);
+                f.set_local(*var);
             }
             Inst::Op(var, op, a, b) => {
-                writeln!(f, "\t\tget_local ${a}")?;
-                writeln!(f, "\t\tget_local ${b}")?;
+                f.get_local(*a);
+                f.get_local(*b);
                 match (op, func.ir.var_type[*a]) {
-                    (Op::Add, Type::I32) => writeln!(f, "\t\ti32.add")?,
-                    (Op::Add, Type::F64) => writeln!(f, "\t\tf64.add")?,
-                    (Op::Sub, Type::I32) => writeln!(f, "\t\ti32.sub")?,
-                    (Op::Sub, Type::F64) => writeln!(f, "\t\tf64.sub")?,
-                    (Op::Mul, Type::I32) => writeln!(f, "\t\ti32.mul")?,
-                    (Op::Mul, Type::F64) => writeln!(f, "\t\tf64.mul")?,
-                    (Op::Div, Type::I32) => writeln!(f, "\t\ti32.div_s")?,
-                    (Op::Div, Type::F64) => writeln!(f, "\t\tf64.div_s")?,
-
-                    (Op::Eq, Type::Bool) => writeln!(f, "\t\ti32.eq")?,
-                    (Op::Eq, Type::I32) => writeln!(f, "\t\ti32.eq")?,
-                    (Op::Eq, Type::F64) => writeln!(f, "\t\tf64.eq")?,
-
-                    (Op::Ne, Type::Bool) => writeln!(f, "\t\ti32.ne")?,
-                    (Op::Ne, Type::I32) => writeln!(f, "\t\ti32.ne")?,
-                    (Op::Ne, Type::F64) => writeln!(f, "\t\tf64.ne")?,
-
-                    (Op::Ge, Type::I32) => writeln!(f, "\t\ti32.ge_s")?,
-                    (Op::Ge, Type::F64) => writeln!(f, "\t\tf64.ge_s")?,
-                    (Op::Gt, Type::I32) => writeln!(f, "\t\ti32.gt_s")?,
-                    (Op::Gt, Type::F64) => writeln!(f, "\t\tf64.gt_s")?,
-
-                    (Op::Le, Type::I32) => writeln!(f, "\t\ti32.le_s")?,
-                    (Op::Le, Type::F64) => writeln!(f, "\t\tf64.le_s")?,
-                    (Op::Lt, Type::I32) => writeln!(f, "\t\ti32.lt_s")?,
-                    (Op::Lt, Type::F64) => writeln!(f, "\t\tf64.lt_s")?,
+                    (Op::Add, Type::I32) => f.add_inst(WasmInst::I32Add),
+                    (Op::Add, Type::F64) => f.add_inst(WasmInst::F64Add),
+                    (Op::Sub, Type::I32) => f.add_inst(WasmInst::I32Sub),
+                    (Op::Sub, Type::F64) => f.add_inst(WasmInst::F64Sub),
+                    (Op::Mul, Type::I32) => f.add_inst(WasmInst::I32Mul),
+                    (Op::Mul, Type::F64) => f.add_inst(WasmInst::F64Mul),
+                    (Op::Div, Type::I32) => f.add_inst(WasmInst::I32DivS),
+                    (Op::Div, Type::F64) => f.add_inst(WasmInst::F64DivS),
+                    (Op::Eq, Type::Bool) => f.add_inst(WasmInst::I32Eq),
+                    (Op::Eq, Type::I32) => f.add_inst(WasmInst::I32Eq),
+                    (Op::Eq, Type::F64) => f.add_inst(WasmInst::F64Eq),
+                    (Op::Ne, Type::Bool) => f.add_inst(WasmInst::I32Ne),
+                    (Op::Ne, Type::I32) => f.add_inst(WasmInst::I32Ne),
+                    (Op::Ne, Type::F64) => f.add_inst(WasmInst::F64Ne),
+                    (Op::Ge, Type::I32) => f.add_inst(WasmInst::I32GeS),
+                    (Op::Ge, Type::F64) => f.add_inst(WasmInst::F64GeS),
+                    (Op::Gt, Type::I32) => f.add_inst(WasmInst::I32GtS),
+                    (Op::Gt, Type::F64) => f.add_inst(WasmInst::F64GtS),
+                    (Op::Le, Type::I32) => f.add_inst(WasmInst::I32LeS),
+                    (Op::Le, Type::F64) => f.add_inst(WasmInst::F64LeS),
+                    (Op::Lt, Type::I32) => f.add_inst(WasmInst::I32LtS),
+                    (Op::Lt, Type::F64) => f.add_inst(WasmInst::F64LtS),
 
                     _ => unimplemented!(),
                 }
-                writeln!(f, "\t\tset_local ${var}")?;
+                f.set_local(*var);
             }
             Inst::UOp(var, op, a) => {
                 match op {
                     UOp::Neg => match func.ir.var_type[*a] {
                         Type::I32 => {
-                            writeln!(f, "\t\ti32.const 0")?;
-                            writeln!(f, "\t\tget_local ${a}")?;
-                            writeln!(f, "\t\ti32.sub")?;
+                            f.add_const_i32(0);
+                            f.get_local(*a);
+                            f.add_inst(WasmInst::I32Sub);
                         }
                         Type::F64 => {
-                            writeln!(f, "\t\tget_local ${a}")?;
-                            writeln!(f, "\t\tf64.neg")?;
-                        }
-                        _ => unimplemented!(),
-                    },
-                    UOp::Not => {
-                        writeln!(f, "\t\tget_local ${a}")?;
-                        writeln!(f, "\t\ti32.not")?;
-                    }
-                }
-                writeln!(f, "\t\tset_local ${var}")?;
-            }
-            Inst::Const(var, val) => {
-                match val {
-                    Value::Bool(true) => writeln!(f, "\t\ti32.const 1")?,
-                    Value::Bool(false) => writeln!(f, "\t\ti32.const 0")?,
-                    Value::F64(val) => writeln!(f, "\t\tf64.const {val}")?,
-                    Value::I32(val) => writeln!(f, "\t\ti32.const {val}")?,
-                    _ => unreachable!(),
-                }
-                writeln!(f, "\t\tset_local ${var}")?;
-            }
-            Inst::Return(var) => {
-                writeln!(f, "\t\tget_local ${var}")?;
-                writeln!(f, "\t\treturn")?;
-
-                return Ok(None);
-            }
-            Inst::Branch(cond, (a, b)) => {
-                writeln!(f, "\t\tget_local ${}", cond)?;
-                writeln!(f, "\t\t(if")?;
-                writeln!(f, "\t\t(then")?;
-                let a = reloop(f, func, *a)?;
-                writeln!(f, "\t\t)")?;
-                writeln!(f, "\t\t(else")?;
-                let b = reloop(f, func, *b)?;
-                writeln!(f, "\t\t)")?;
-                writeln!(f, "\t\t)")?;
-
-                return match (a, b) {
-                    _ => Ok(None),
-                };
-            }
-            Inst::JumpTo(target, args) => {
-                // pass the paramaters
-                let start = func.ir.block_params[*target].0;
-                for i in 0..args.len() {
-                    writeln!(f, "\t\tget_local ${}", args[i])?;
-                    writeln!(f, "\t\tset_local ${}", start + i)?;
-                }
-
-                // move on to the next block
-                if is_parent_of(func, *target, block) {
-                    writeln!(f, "\t\tbr 1")?;
-                    return Ok(None);
-                } else if dominates(func, block, *target) {
-                    return reloop(f, func, *target);
-                } else {
-                    return Ok(Some(*target));
-                }
-            }
-        };
-    }
-
-    panic!("Block didn't end!")
-}
-
-fn reloop_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
-    let next_block = if is_loop(func, block) {
-        f.push(0x03);
-        f.push(0x40); // block type, empty for now
-        let next_block = add_block_bin(f, func, block);
-        f.push(0x0B);
-        next_block
-    } else {
-        add_block_bin(f, func, block)
-    };
-
-    return next_block;
-}
-
-fn set_local(f: &mut Vec<u8>, local: usize) {
-    f.push(0x21);
-    local.write_leb128(f);
-}
-
-fn get_local(f: &mut Vec<u8>, local: usize) {
-    f.push(0x20);
-    local.write_leb128(f);
-}
-
-fn add_i32_const(f: &mut Vec<u8>, value: i32) {
-    f.push(0x41);
-    value.write_leb128(f);
-}
-
-fn add_f64_const(f: &mut Vec<u8>, value: f64) {
-    f.push(0x44);
-    for byte in value.to_le_bytes() {
-        f.push(byte);
-    }
-}
-
-fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
-    for inst in &func.ir.insts[func.ir.blocks[block]..] {
-        match inst {
-            Inst::Call(var, call, args) => {
-                for arg in args {
-                    get_local(f, *arg);
-                }
-                f.push(0x10); // func call inst
-                call.write_leb128(f);
-                set_local(f, *var);
-            }
-            Inst::Op(var, op, a, b) => {
-                get_local(f, *a);
-                get_local(f, *b);
-                match (op, func.ir.var_type[*a]) {
-                    (Op::Add, Type::I32) => f.push(0x6A),
-                    (Op::Sub, Type::I32) => f.push(0x6B),
-                    (Op::Mul, Type::I32) => f.push(0x6C),
-                    (Op::Div, Type::I32) => f.push(0x6D),
-
-                    (Op::Add, Type::F64) => f.push(0xA0),
-                    (Op::Sub, Type::F64) => f.push(0xA1),
-                    (Op::Mul, Type::F64) => f.push(0xA2),
-                    (Op::Div, Type::F64) => f.push(0xA3),
-
-                    (Op::Eq, Type::Bool) => f.push(0x46),
-                    (Op::Eq, Type::I32) => f.push(0x46),
-                    (Op::Eq, Type::F64) => f.push(0x61),
-
-                    (Op::Ne, Type::Bool) => f.push(0x47),
-                    (Op::Ne, Type::I32) => f.push(0x47),
-                    (Op::Ne, Type::F64) => f.push(0x62),
-
-                    (Op::Ge, Type::I32) => f.push(0x4E),
-                    (Op::Gt, Type::I32) => f.push(0x4A),
-                    (Op::Le, Type::I32) => f.push(0x4C),
-                    (Op::Lt, Type::I32) => f.push(0x48),
-
-                    (Op::Ge, Type::F64) => f.push(0x66),
-                    (Op::Gt, Type::F64) => f.push(0x64),
-                    (Op::Le, Type::F64) => f.push(0x65),
-                    (Op::Lt, Type::F64) => f.push(0x63),
-
-                    _ => unimplemented!(),
-                }
-                set_local(f, *var)
-            }
-            Inst::UOp(var, op, a) => {
-                match op {
-                    UOp::Neg => match func.ir.var_type[*a] {
-                        Type::I32 => {
-                            add_i32_const(f, 0);
-                            get_local(f, *a);
-                            f.push(0x6B); // i32.sub
-                        }
-                        Type::F64 => {
-                            get_local(f, *a);
-                            f.push(0x9A); // f64.neg
+                            f.get_local(*a);
+                            f.add_inst(WasmInst::F64Neg);
                         }
                         _ => unimplemented!(),
                     },
                     UOp::Not => unimplemented!(),
                 }
-                set_local(f, *var)
+                f.set_local(*var);
             }
             Inst::Const(var, val) => {
                 match val {
-                    Value::Bool(true) => add_i32_const(f, 1),
-                    Value::Bool(false) => add_i32_const(f, 0),
-                    Value::I32(val) => add_i32_const(f, *val),
-                    Value::F64(val) => add_f64_const(f, *val),
+                    Value::Bool(true) => f.add_const_i32(1),
+                    Value::Bool(false) => f.add_const_i32(0),
+                    Value::F64(val) => f.add_const_f64(*val),
+                    Value::I32(val) => f.add_const_i32(*val),
                     _ => unreachable!(),
                 }
-                set_local(f, *var);
+                f.set_local(*var);
             }
             Inst::Return(var) => {
-                get_local(f, *var);
-                f.push(0x0F);
+                f.get_local(*var);
+                f.add_return();
 
                 return None;
             }
             Inst::Branch(cond, (a, b)) => {
-                get_local(f, *cond); // if
-                f.push(0x04); // then
-                f.push(0x40); // block type, empty for now
-                let a = reloop_bin(f, func, *a);
-                f.push(0x05); // else
-                let b = reloop_bin(f, func, *b);
-                f.push(0x0B); // end
+                f.get_local(*cond);
+
+                f.if_block();
+                let a = reloop(f, func, *a);
+                f.else_block();
+                let b = reloop(f, func, *b);
+                f.end_block();
 
                 return match (a, b) {
                     _ => None,
@@ -430,17 +271,16 @@ fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
                 // pass the paramaters
                 let start = func.ir.block_params[*target].0;
                 for i in 0..args.len() {
-                    get_local(f, args[i]);
-                    set_local(f, start + i);
+                    f.get_local(args[i]);
+                    f.set_local(start + i);
                 }
 
                 // move on to the next block
                 if is_parent_of(func, *target, block) {
-                    f.push(0x0C);
-                    1usize.write_leb128(f);
+                    f.add_break(1);
                     return None;
                 } else if dominates(func, block, *target) {
-                    return reloop_bin(f, func, *target);
+                    return reloop(f, func, *target);
                 } else {
                     return Some(*target);
                 }
@@ -449,4 +289,242 @@ fn add_block_bin(f: &mut Vec<u8>, func: &Func, block: usize) -> Option<usize> {
     }
 
     panic!("Block didn't end!")
+}
+
+///
+struct WasmBuilder {
+    buffer: Vec<u8>,
+}
+
+impl WasmBuilder {
+    fn new() -> Self {
+        return WasmBuilder { buffer: vec![] };
+    }
+}
+
+impl WasmOrWatBuilder for WasmBuilder {
+    fn start_loop(&mut self) {
+        self.buffer.push(0x03); // this is a loop
+        self.buffer.push(0x40); // that returns nothing
+    }
+
+    fn if_block(&mut self) {
+        self.buffer.push(0x04); // if
+        self.buffer.push(0x40); // returns nothing
+    }
+
+    fn else_block(&mut self) {
+        self.buffer.push(0x05); // else
+    }
+
+    fn end_block(&mut self) {
+        self.buffer.push(0x0B); // end
+    }
+
+    fn close_loop(&mut self) {
+        self.end_block()
+    }
+
+    fn get_local(&mut self, var: usize) {
+        self.buffer.push(0x20);
+        var.write_leb128(&mut self.buffer);
+    }
+
+    fn set_local(&mut self, var: usize) {
+        self.buffer.push(0x21);
+        var.write_leb128(&mut self.buffer);
+    }
+
+    fn add_break(&mut self, label: usize) {
+        self.buffer.push(0x0C);
+        label.write_leb128(&mut self.buffer);
+    }
+
+    fn add_func_call(&mut self, func_id: usize) {
+        self.buffer.push(0x10); // func call inst
+        func_id.write_leb128(&mut self.buffer);
+    }
+
+    fn add_const_f64(&mut self, value: f64) {
+        self.buffer.push(0x44);
+        for byte in value.to_le_bytes() {
+            self.buffer.push(byte);
+        }
+    }
+
+    fn add_const_i32(&mut self, value: i32) {
+        self.buffer.push(0x41);
+        value.write_leb128(&mut self.buffer);
+    }
+
+    fn add_return(&mut self) {
+        self.buffer.push(0x0F);
+    }
+
+    fn add_inst(&mut self, inst: WasmInst) {
+        match inst {
+            WasmInst::I32Add => self.buffer.push(0x6A),
+            WasmInst::I32Sub => self.buffer.push(0x6B),
+            WasmInst::I32Mul => self.buffer.push(0x6C),
+            WasmInst::I32DivS => self.buffer.push(0x6D),
+
+            WasmInst::F64Add => self.buffer.push(0xA0),
+            WasmInst::F64Sub => self.buffer.push(0xA1),
+            WasmInst::F64Mul => self.buffer.push(0xA2),
+            WasmInst::F64DivS => self.buffer.push(0xA3),
+
+            WasmInst::I32Eq => self.buffer.push(0x46),
+            WasmInst::F64Eq => self.buffer.push(0x61),
+
+            WasmInst::I32Ne => self.buffer.push(0x47),
+            WasmInst::F64Ne => self.buffer.push(0x62),
+
+            WasmInst::I32GeS => self.buffer.push(0x4E),
+            WasmInst::I32GtS => self.buffer.push(0x4A),
+            WasmInst::I32LeS => self.buffer.push(0x4C),
+            WasmInst::I32LtS => self.buffer.push(0x48),
+
+            WasmInst::F64GeS => self.buffer.push(0x66),
+            WasmInst::F64GtS => self.buffer.push(0x64),
+            WasmInst::F64LeS => self.buffer.push(0x65),
+            WasmInst::F64LtS => self.buffer.push(0x63),
+
+            WasmInst::F64Neg => self.buffer.push(0x9A),
+        };
+    }
+}
+
+///
+struct WatBuilder {
+    buffer: Vec<u8>,
+}
+
+impl WatBuilder {
+    fn new() -> Self {
+        return WatBuilder { buffer: vec![] };
+    }
+}
+
+impl WasmOrWatBuilder for WatBuilder {
+    fn start_loop(&mut self) {
+        writeln!(self.buffer, "(loop");
+    }
+
+    fn if_block(&mut self) {
+        writeln!(self.buffer, "(if");
+        writeln!(self.buffer, "(then");
+    }
+
+    fn else_block(&mut self) {
+        writeln!(self.buffer, ")");
+        writeln!(self.buffer, "(else");
+    }
+
+    fn end_block(&mut self) {
+        writeln!(self.buffer, ")");
+        writeln!(self.buffer, ")");
+    }
+
+    fn close_loop(&mut self) {
+        writeln!(self.buffer, ")");
+    }
+
+    fn get_local(&mut self, var: usize) {
+        writeln!(self.buffer, "get_local {var}");
+    }
+
+    fn set_local(&mut self, var: usize) {
+        writeln!(self.buffer, "set_local {var}");
+    }
+
+    fn add_break(&mut self, label: usize) {
+        writeln!(self.buffer, "br {label}");
+    }
+
+    fn add_func_call(&mut self, func_id: usize) {
+        writeln!(self.buffer, "call {func_id}");
+    }
+
+    fn add_const_f64(&mut self, value: f64) {
+        writeln!(self.buffer, "f64.const {value}");
+    }
+
+    fn add_const_i32(&mut self, value: i32) {
+        writeln!(self.buffer, "i32.const {value}");
+    }
+
+    fn add_return(&mut self) {
+        writeln!(self.buffer, "return");
+    }
+
+    fn add_inst(&mut self, inst: WasmInst) {
+        match inst {
+            WasmInst::I32Add => writeln!(self.buffer, "i32.add"),
+            WasmInst::F64Add => writeln!(self.buffer, "f64.add"),
+            WasmInst::I32Sub => writeln!(self.buffer, "i32.sub"),
+            WasmInst::F64Sub => writeln!(self.buffer, "f64.sub"),
+            WasmInst::I32Mul => writeln!(self.buffer, "i32.mul"),
+            WasmInst::F64Mul => writeln!(self.buffer, "f64.mul"),
+            WasmInst::I32DivS => writeln!(self.buffer, "i32.div_s"),
+            WasmInst::F64DivS => writeln!(self.buffer, "f64.div_s"),
+            WasmInst::I32Eq => writeln!(self.buffer, "i32.eq"),
+            WasmInst::F64Eq => writeln!(self.buffer, "f64.eq"),
+            WasmInst::I32Ne => writeln!(self.buffer, "i32.new"),
+            WasmInst::F64Ne => writeln!(self.buffer, "f64.ne"),
+            WasmInst::I32GeS => writeln!(self.buffer, "i32.ge_s"),
+            WasmInst::F64GeS => writeln!(self.buffer, "f64.ge_s"),
+            WasmInst::I32GtS => writeln!(self.buffer, "i32.gt_s"),
+            WasmInst::F64GtS => writeln!(self.buffer, "f64.gt_s"),
+            WasmInst::I32LeS => writeln!(self.buffer, "i32.le_s"),
+            WasmInst::F64LeS => writeln!(self.buffer, "f64.le_s"),
+            WasmInst::I32LtS => writeln!(self.buffer, "i32.lt_s"),
+            WasmInst::F64LtS => writeln!(self.buffer, "f64.lt_s"),
+            WasmInst::F64Neg => writeln!(self.buffer, "f64.neg"),
+        };
+    }
+}
+
+///
+trait WasmOrWatBuilder {
+    fn start_loop(&mut self);
+    fn close_loop(&mut self);
+
+    fn if_block(&mut self);
+    fn else_block(&mut self);
+    fn end_block(&mut self);
+
+    fn get_local(&mut self, var: usize);
+    fn set_local(&mut self, var: usize);
+
+    fn add_break(&mut self, label: usize);
+    fn add_func_call(&mut self, func_id: usize);
+    fn add_const_i32(&mut self, value: i32);
+    fn add_const_f64(&mut self, value: f64);
+    fn add_return(&mut self);
+    fn add_inst(&mut self, inst: WasmInst);
+}
+
+///
+enum WasmInst {
+    I32Add,
+    F64Add,
+    I32Sub,
+    F64Sub,
+    I32Mul,
+    F64Mul,
+    I32DivS,
+    F64DivS,
+    I32Eq,
+    F64Eq,
+    I32Ne,
+    F64Ne,
+    I32GeS,
+    F64GeS,
+    I32GtS,
+    F64GtS,
+    I32LeS,
+    F64LeS,
+    I32LtS,
+    F64LtS,
+    F64Neg,
 }
