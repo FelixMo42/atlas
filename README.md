@@ -10,7 +10,7 @@ blocks and give strict TDD a try.
 // There are no multiline comments yet.
 
 // All code must be inside of functions.
-fn part_1_basic_types_and_operators() {
+part_1_basic_types_and_operators() {
     // There are two types:
     1234 // i32
     1.2  // f64
@@ -52,7 +52,7 @@ fn part_1_basic_types_and_operators() {
 }
 
 // Any number of paramaters can be passed into a function.
-fn part_2_variables_and_control_structures(a, b) {
+part_2_variables_and_control_structures(a, b) {
     // Variables are declared with the `let` keyword.
     let some_name = 0
 
@@ -91,7 +91,7 @@ fn part_2_variables_and_control_structures(a, b) {
 }
 
 // The main functions is called at the start of the programe
-fn main() {
+main() {
     part_1_basic_types_and_operators()
     part_2_variables_and_control_structures(4, 5)
 }
@@ -112,14 +112,10 @@ fn main() {
 
 The only dependency is cargo.
 
-Complile to wasm
-`cargo run to-wasm <in> <out>`
+Complile to wasm `cargo run to-wasm <in> <out>`
 
-Run the dev server
-`cargo run server`
+Run the dev server `cargo run server`
 
-Run a file using ir
-`cargo run <file>`
+Run a file using ir `cargo run <file>`
 
-Run the unit test
-`cargo test`
+Run the unit test `cargo test`

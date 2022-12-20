@@ -13,6 +13,7 @@ pub enum Token<'a> {
     Open(char),
     Close(char),
     Comma,
+    Colon,
 
     // mathmatical operator
     Add,
@@ -51,6 +52,7 @@ fn parse_token(src: &str) -> (Token, usize) {
                     '[' => return (Token::Open('['), 1),
                     ']' => return (Token::Close(']'), 1),
                     ',' => return (Token::Comma, 1),
+                    ':' => return (Token::Colon, 1),
                     '=' => 5,
                     '<' => 6,
                     '>' => 7,

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.4
+
+### Changed
+
+- removed 'fn' keyword
+- allow tabs in code input
+
 ## v0.3.3
 
 ### Added

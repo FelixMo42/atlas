@@ -100,9 +100,9 @@ mod tests_ir {
 
     fn test_eval(src: &str, value: Value) {
         test(&match value.get_type() {
-            Type::F64 => format!("fn main() F64 {{ return {} }}", src),
-            Type::I32 => format!("fn main() I32 {{ return {} }}", src),
-            Type::Bool => format!("fn main() Bool {{ return {} }}", src),
+            Type::F64 => format!("main() F64 {{ return {} }}", src),
+            Type::I32 => format!("main() I32 {{ return {} }}", src),
+            Type::Bool => format!("main() Bool {{ return {} }}", src),
         }, value)
     }
 
@@ -110,7 +110,7 @@ mod tests_ir {
     #[ignore]
     fn test_memory() {
         test("
-            fn main() I32 {
+            main() I32 {
                 let address = alloc(100)
                 store(address, 42)
                 return load(address)
@@ -122,14 +122,14 @@ mod tests_ir {
     fn test_comment() {
         test("
             // aofhawf
-            fn ret() I32 {
+            ret() I32 {
                 // are //
                 return 42 // 23agr 3
                 // nbu75 hgy
             }
 
             // oy9y84gh
-            fn main() I32 {
+            main() I32 {
                 // [0ug8y 48y ]
                 let x = ret() // oauyifg
                 // 8wy4ihg 
@@ -143,7 +143,7 @@ mod tests_ir {
     #[test]
     fn test_loop() {
         test("
-            fn main() I32 {
+            main() I32 {
                 let x = 1
                 while x < 10 {
                     x = x + 1
@@ -156,7 +156,7 @@ mod tests_ir {
     #[test]
     fn test_redefine_variable() {
         test("
-            fn main() I32 {
+            main() I32 {
                 let x = 1
                 x = x + 1
                 return x
@@ -164,7 +164,7 @@ mod tests_ir {
         ", Value::I32(2));
 
         test("
-            fn main() I32 {
+            main() I32 {
                 let x = 1
                 {
                     x = x + 1
@@ -174,7 +174,7 @@ mod tests_ir {
         ", Value::I32(2));
 
         test("
-            fn main() I32 {
+            main() I32 {
                 let x = 1
                 {
                     let x = 5
@@ -188,7 +188,7 @@ mod tests_ir {
     #[test]
     fn test_branch_flow() {
         test("
-            fn main() I32 {
+            main() I32 {
                 if true {
                     return 1
                 } else {
@@ -198,7 +198,7 @@ mod tests_ir {
         ", Value::I32(1));
     
         test("
-            fn main() I32 {
+            main() I32 {
                 if false {
                     return 1
                 }
@@ -207,7 +207,7 @@ mod tests_ir {
         ", Value::I32(2));
 
         test("
-            fn main() I32 {
+            main() I32 {
                 let x = 1
                 {
                     let x = 2
@@ -217,12 +217,12 @@ mod tests_ir {
         ", Value::I32(1));
 
         test("
-            fn bla() I32 {
+            bla() I32 {
                 let x = 2
                 return 0
             }
 
-            fn main() I32 {
+            main() I32 {
                 let x = 1
                 bla()
                 return x
@@ -233,14 +233,14 @@ mod tests_ir {
     #[test]
     fn test_variables() {
         test("
-            fn main() I32 {
+            main() I32 {
                 let x = 5
                 return 40 + x
             }
         ", Value::I32(45));
 
         test("
-            fn main() I32 {
+            main() I32 {
                 let x = 5
                 let x = x + 10
                 return x
@@ -251,40 +251,40 @@ mod tests_ir {
     #[test]
     fn test_func_def() {
         test("
-            fn main() I32 {
+            main() I32 {
                 return 40 + 2
             }
         ", Value::I32(42));
 
         test("
-            fn forty() I32 {
+            forty() I32 {
                 return 20 * 2
             }
 
-            fn main() I32 {
+            main() I32 {
                 return forty() + 200
             }
         ", Value::I32(240));
 
         test("
-            fn add(a: I32, b: I32) I32 {
+            add(a: I32, b: I32) I32 {
                 return a + b
             }
 
-            fn main() I32 {
+            main() I32 {
                 return add(1, 2)
             }
         ", Value::I32(3));
 
         test("
-            fn fib(num: I32) I32 {
+            fib(num: I32) I32 {
                 return
                     if (num == 1) 1
                     else if (num == 0) 0
                     else fib(num - 1) + fib(num - 2)
             }
 
-            fn main() I32 {
+            main() I32 {
                 return fib(7)
             }
         ", Value::I32(13));

@@ -229,11 +229,6 @@ fn parse_param(lex: &mut Lexer) -> Param {
 }
 
 fn parse_func_def(lex: &mut Lexer) -> Option<FuncDef> {
-    // parse function keywoard
-    if lex.next() != Token::Ident("fn") {
-        return None;
-    };
-
     // parse name
     let name = if let Token::Ident(name) = lex.next() {
         name.to_string()
@@ -255,12 +250,7 @@ fn parse_func_def(lex: &mut Lexer) -> Option<FuncDef> {
     }
 
     // parse return type
-    let return_type = match lex.next() {
-        Token::Ident("I32") => Type::I32,
-        Token::Ident("F64") => Type::F64,
-        Token::Ident("Bool") => Type::Bool,
-        _ => return None,
-    };
+    let return_type = parse_type(lex);
 
     // parse body
     let body = parse_expr(lex);
