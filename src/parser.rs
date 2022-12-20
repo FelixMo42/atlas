@@ -1,7 +1,7 @@
 use crate::lexer::*;
 use crate::value::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Ast {
     // base
     Ident(String),
@@ -42,6 +42,23 @@ pub enum Ast {
 
     // misc
     Array(Vec<Ast>),
+
+    // defintions
+    FuncDef(FuncDef),
+}
+
+#[derive(Debug, Clone)]
+pub struct FuncDef {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub return_type: Type,
+    pub body: Box<Ast>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Param {
+    pub name: String,
+    pub param_type: Type,
 }
 
 fn check(lex: &mut Lexer, token: Token) -> bool {
@@ -95,6 +112,30 @@ fn parse_value(lex: &mut Lexer) -> Ast {
             let ident = ident.to_string();
             if check(lex, Token::Set) {
                 Ast::Assign(ident, Box::new(parse_expr(lex)))
+            } else if check(lex, Token::Open('(')) {
+                let mut params = vec![];
+                if !check(lex, Token::Close(')')) {
+                    loop {
+                        params.push(parse_param(lex));
+
+                        if lex.next() == Token::Close(')') {
+                            break;
+                        }
+                    }
+                }
+
+                // parse return type
+                let return_type = parse_type(lex);
+
+                // parse body
+                let body = Box::new(parse_expr(lex));
+
+                return Ast::FuncDef(FuncDef {
+                    name: ident,
+                    params,
+                    return_type,
+                    body,
+                });
             } else {
                 Ast::Ident(ident)
             }
@@ -191,19 +232,6 @@ fn parse_expr(lex: &mut Lexer) -> Ast {
     return parse_cmp(lex);
 }
 
-pub struct FuncDef {
-    pub name: String,
-    pub params: Vec<Param>,
-    pub return_type: Type,
-    pub body: Ast,
-}
-
-#[derive(Debug)]
-pub struct Param {
-    pub name: String,
-    pub param_type: Type,
-}
-
 fn parse_type(lex: &mut Lexer) -> Type {
     match lex.next() {
         Token::Ident("I32") => Type::I32,
@@ -228,48 +256,13 @@ fn parse_param(lex: &mut Lexer) -> Param {
     };
 }
 
-fn parse_func_def(lex: &mut Lexer) -> Option<FuncDef> {
-    // parse name
-    let name = if let Token::Ident(name) = lex.next() {
-        name.to_string()
-    } else {
-        return None;
-    };
-
-    // parse paramaters
-    lex.next(); // (
-    let mut params = vec![];
-    if !check(lex, Token::Close(')')) {
-        loop {
-            params.push(parse_param(lex));
-
-            if lex.next() == Token::Close(')') {
-                break;
-            }
-        }
-    }
-
-    // parse return type
-    let return_type = parse_type(lex);
-
-    // parse body
-    let body = parse_expr(lex);
-
-    return Some(FuncDef {
-        name: name.to_string(),
-        params,
-        return_type,
-        body,
-    });
-}
-
-pub fn parse(src: &str) -> Vec<FuncDef> {
+pub fn parse(src: &str) -> Vec<Ast> {
     let mut funcs = vec![];
 
     let mut lex = Lexer::new(src);
 
-    while let Some(func_def) = parse_func_def(&mut lex) {
-        funcs.push(func_def)
+    while !lex.is_done() {
+        funcs.push(parse_expr(&mut lex))
     }
 
     return funcs;

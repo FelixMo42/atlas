@@ -17,15 +17,15 @@ pub struct Func {
 }
 
 impl Func {
-    pub fn new(module: &Module, func_def: FuncDef) -> Func {
+    pub fn new(module: &Module, func_def: &FuncDef) -> Func {
         let mut ir = Blocks::new(&func_def.params);
 
         let scope = &mut module.scope.child();
 
         let num_params = func_def.params.len();
 
-        for (i, param) in func_def.params.into_iter().enumerate() {
-            scope.declair(param.name, i);
+        for (i, param) in func_def.params.iter().enumerate() {
+            scope.declair(param.name.clone(), i);
             ir.var_decl.push(0); // TODO: !!
             ir.var_type.push(param.param_type);
         }
@@ -33,7 +33,7 @@ impl Func {
         ir.add(&func_def.body, scope);
 
         return Func {
-            name: func_def.name,
+            name: func_def.name.clone(),
             num_params,
             return_type: func_def.return_type,
             ir,
@@ -219,6 +219,7 @@ impl Blocks {
 
     fn add(&mut self, ast: &Ast, scope: &mut Scope) -> usize {
         match ast {
+            Ast::FuncDef(..) => unreachable!(),
             Ast::I32(num) => self.add_consts(Value::I32(*num)),
             Ast::F64(num) => self.add_consts(Value::F64(*num)),
             Ast::Bool(val) => self.add_consts(Value::Bool(*val)),

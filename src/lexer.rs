@@ -155,6 +155,10 @@ impl<'a> Lexer<'a> {
     pub fn load(&mut self, index: usize) {
         self.index = index
     }
+
+    pub fn is_done(&self) -> bool {
+        return self.index == self.src.len();
+    }
 }
 
 fn calc_whitespace(src: &str, index: usize) -> usize {

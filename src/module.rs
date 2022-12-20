@@ -14,8 +14,17 @@ impl<'a> Module<'a> {
     pub fn from_src(src: &str) -> Self {
         let mut module = Module::default();
 
-        // parse all the functions
-        let funcs = parse(src);
+        // parse the source
+        let defs = parse(src);
+
+        // get all the funcions
+        let funcs = defs
+            .iter()
+            .filter_map(|ast| match ast {
+                Ast::FuncDef(func_def) => Some(func_def),
+                _ => None,
+            })
+            .collect::<Vec<&FuncDef>>();
 
         // register the functions in the scope
         for i in 0..funcs.len() {
