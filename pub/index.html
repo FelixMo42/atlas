@@ -103,6 +103,22 @@
         outputEl.innerHTML = await exec(src)
     }
 
+    inputEl.onkeydown = (e) => {
+        if (e.key == 'Tab') {
+            e.preventDefault();
+            var start = inputEl.selectionStart;
+            var end = inputEl.selectionEnd;
+
+            // set textarea value to: text before caret + tab + text after caret
+            inputEl.value = inputEl.value.substring(0, start) +
+                "\t" + inputEl.value.substring(end);
+
+            // put caret at right position again
+            inputEl.selectionStart =
+                inputEl.selectionEnd = start + 1;
+        }
+    }
+
     function exec(src) {
         const importObject = {}
 
