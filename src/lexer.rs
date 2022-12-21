@@ -107,7 +107,8 @@ fn parse_token(src: &str) -> (Token, usize) {
                 _ => return (Token::Div, 1)
             }
             10 /* comment */ => match chr {
-                '\n' | '\x00' => return (Token::Comment, len),
+                '\n' => return (Token::Comment, len),
+                '\x00' => return (Token::Comment, len - 1),
                 _ => 10
             }
             _ => unreachable!()

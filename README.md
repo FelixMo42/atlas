@@ -10,7 +10,7 @@ blocks and give strict TDD a try.
 // There are no multiline comments yet.
 
 // All code must be inside of functions.
-part_1_basic_types_and_operators() {
+part_1_basic_types_and_operators(): I32 {
     // There are two types:
     1234 // i32
     1.2  // f64
@@ -52,7 +52,7 @@ part_1_basic_types_and_operators() {
 }
 
 // Any number of paramaters can be passed into a function.
-part_2_variables_and_control_structures(a, b) {
+part_2_variables_and_control_structures(a, b): I32 {
     // Variables are declared with the `let` keyword.
     let some_name = 0
 
@@ -91,9 +91,10 @@ part_2_variables_and_control_structures(a, b) {
 }
 
 // The main functions is called at the start of the programe
-main() {
+main(): F64 {
     part_1_basic_types_and_operators()
     part_2_variables_and_control_structures(4, 5)
+    return 0.0
 }
 ```
 

@@ -40,11 +40,9 @@ impl Func {
         };
     }
 
-    #[allow(dead_code)]
-    pub fn log(&self) {
-        println!("function {} ():", self.name);
-        self.ir.log();
-        println!();
+    pub fn log(&self, buffer: &mut impl std::io::Write) -> std::io::Result<()> {
+        writeln!(buffer, "function {} ():", self.name)?;
+        self.ir.log(buffer)
     }
 }
 
@@ -219,7 +217,7 @@ impl Blocks {
 
     fn add(&mut self, ast: &Ast, scope: &mut Scope) -> usize {
         match ast {
-            Ast::FuncDef(..) => unreachable!(),
+            Ast::TypeDef(..) | Ast::FuncDef(..) => unreachable!(),
             Ast::I32(num) => self.add_consts(Value::I32(*num)),
             Ast::F64(num) => self.add_consts(Value::F64(*num)),
             Ast::Bool(val) => self.add_consts(Value::Bool(*val)),
@@ -415,40 +413,42 @@ impl Blocks {
         }
     }
 
-    pub fn log(&self) {
+    pub fn log(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
         for (i, inst) in self.insts.iter().enumerate() {
             for block in 0..self.blocks.len() {
                 if self.blocks[block] == i {
                     let (first_param, num_params) = self.block_params[block];
-                    println!(
+                    writeln!(
+                        f,
                         "'{} ({}):",
                         block,
                         (0..num_params)
                             .map(|i| format!("v{}", first_param + i))
                             .collect::<Vec<String>>()
                             .join("\n")
-                    );
+                    )?;
                 }
             }
 
             match inst {
-                Inst::Branch(cond, (a, b)) => println!("  if v{cond} then '{a} else '{b}"),
-                Inst::Const(var, val) => println!("  v{var} = {val:?}"),
-                Inst::Op(var, op, a, b) => println!("  v{var} = ({op:?} v{a} v{b})"),
-                Inst::UOp(var, op, a) => println!("  v{var} = ({op:?} v{a})"),
-                Inst::Return(var) => println!("  return v{var}"),
-                Inst::Call(var, func_id, args) => println!("  v{var} = ${func_id}{args:?}"),
-                Inst::JumpTo(block, args) => {
-                    println!(
-                        "  '{block}({})",
-                        args.iter()
-                            .map(|arg| format!("v{}", arg))
-                            .collect::<Vec<String>>()
-                            .join("\n")
-                    );
-                }
-            }
+                Inst::Branch(cond, (a, b)) => writeln!(f, "  if v{cond} then '{a} else '{b}"),
+                Inst::Const(var, val) => writeln!(f, "  v{var} = {val:?}"),
+                Inst::Op(var, op, a, b) => writeln!(f, "  v{var} = ({op:?} v{a} v{b})"),
+                Inst::UOp(var, op, a) => writeln!(f, "  v{var} = ({op:?} v{a})"),
+                Inst::Return(var) => writeln!(f, "  return v{var}"),
+                Inst::Call(var, func_id, args) => writeln!(f, "  v{var} = ${func_id}{args:?}"),
+                Inst::JumpTo(block, args) => writeln!(
+                    f,
+                    "  '{block}({})",
+                    args.iter()
+                        .map(|arg| format!("v{}", arg))
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                ),
+            }?;
         }
+
+        return Ok(());
     }
 }
 

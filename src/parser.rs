@@ -45,6 +45,12 @@ pub enum Ast {
 
     // defintions
     FuncDef(FuncDef),
+    TypeDef(TypeDef),
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeDef {
+    fields: Vec<Param>,
 }
 
 #[derive(Debug, Clone)]
@@ -110,18 +116,36 @@ fn parse_value(lex: &mut Lexer) -> Ast {
         }
         Token::Ident(ident) => {
             let ident = ident.to_string();
+            let save = lex.save();
             if check(lex, Token::Set) {
                 Ast::Assign(ident, Box::new(parse_expr(lex)))
+            } else if check(lex, Token::Open('{')) {
+                let mut fields = vec![];
+                while !check(lex, Token::Close('}')) {
+                    fields.push(parse_param(lex).unwrap());
+                }
+                return Ast::TypeDef(TypeDef { fields });
             } else if check(lex, Token::Open('(')) {
                 let mut params = vec![];
                 if !check(lex, Token::Close(')')) {
                     loop {
-                        params.push(parse_param(lex));
+                        match parse_param(lex) {
+                            Some(param) => params.push(param),
+                            None => {
+                                lex.load(save);
+                                return Ast::Ident(ident);
+                            }
+                        }
 
                         if lex.next() == Token::Close(')') {
                             break;
                         }
                     }
+                }
+
+                if lex.next() != Token::Colon {
+                    lex.load(save);
+                    return Ast::Ident(ident);
                 }
 
                 // parse return type
@@ -237,23 +261,30 @@ fn parse_type(lex: &mut Lexer) -> Type {
         Token::Ident("I32") => Type::I32,
         Token::Ident("F64") => Type::F64,
         Token::Ident("Bool") => Type::Bool,
-        _ => unimplemented!(),
+        tok => {
+            println!(">> {:?}", tok);
+            unimplemented!();
+        }
     }
 }
 
-fn parse_param(lex: &mut Lexer) -> Param {
-    let name = if let Token::Ident(name) = lex.next() {
+fn parse_param(lex: &mut Lexer) -> Option<Param> {
+    let tok = lex.next();
+    println!(">> {:?}", tok);
+    let name = if let Token::Ident(name) = tok {
         name.to_string()
     } else {
-        unimplemented!()
+        return None;
     };
 
-    lex.next(); // :
+    if lex.next() != Token::Colon {
+        return None;
+    }
 
-    return Param {
+    return Some(Param {
         name,
         param_type: parse_type(lex),
-    };
+    });
 }
 
 pub fn parse(src: &str) -> Vec<Ast> {
@@ -264,6 +295,8 @@ pub fn parse(src: &str) -> Vec<Ast> {
     while !lex.is_done() {
         funcs.push(parse_expr(&mut lex))
     }
+
+    println!("{funcs:?}");
 
     return funcs;
 }

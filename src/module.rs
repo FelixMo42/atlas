@@ -54,11 +54,11 @@ impl<'a> Module<'a> {
         self.scope.get(name).map(|func_id| &self.funcs[func_id])
     }
 
-    #[allow(dead_code)]
-    pub fn log(&self) {
+    pub fn log(&self, buffer: &mut impl std::io::Write) -> std::io::Result<()> {
         for func in &self.funcs {
-            func.log();
+            func.log(buffer)?;
         }
+        return Ok(());
     }
 }
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.5
+
+### Changed
+
+- requires colon before return type
+
+### Added
+
+- to-ir cli instruction
+
 ## v0.3.4
 
 ### Changed
