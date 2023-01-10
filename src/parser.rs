@@ -261,6 +261,15 @@ fn parse_type(lex: &mut Lexer) -> Type {
         Token::Ident("I32") => Type::I32,
         Token::Ident("F64") => Type::F64,
         Token::Ident("Bool") => Type::Bool,
+        Token::Ident("Tuple") => {
+            check(lex, Token::Open('('));
+            let mut parts = vec![];
+            while !check(lex, Token::Close(')')) {
+                parts.push(parse_type(lex));
+                check(lex, Token::Comma);
+            }
+            Type::Tuple(parts)
+        }
         tok => {
             println!(">> {:?}", tok);
             unimplemented!();

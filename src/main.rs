@@ -100,30 +100,21 @@ mod tests_ir {
 
     fn test(src: &str, value: Value) {
         let module = &Module::from_src(src);
-        test_interpreter(module, value);
-        test_wasm(module, value);
+        test_interpreter(module, value.clone());
+        test_wasm(module, value.clone());
     }
 
     fn test_eval(src: &str, value: Value) {
-        test(&match value.get_type() {
-            Type::F64 => format!("main(): F64 {{ return {} }}", src),
-            Type::I32 => format!("main(): I32 {{ return {} }}", src),
-            Type::Bool => format!("main(): Bool {{ return {} }}", src),
-        }, value)
+        test(&format!("main(): {} {{ return {} }}", value.get_type(), src), value)
     }
 
     #[test]
-    fn test_struct() {
+    fn test_tuple() {
         test("
-            Vec2 {
-                x: I32
-                y: I32
+            main(): Tuple(I32, I32) {
+                return [11, 12]
             }
-
-            main(): I32 {
-                return Vec2(12, 13)
-            }
-        ", Value::I32(12)) 
+        ", Value::Tuple(vec![Value::I32(11), Value::I32(12)])) 
     }
 
     #[test]

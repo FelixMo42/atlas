@@ -27,7 +27,7 @@ impl Func {
         for (i, param) in func_def.params.iter().enumerate() {
             scope.declair(param.name.clone(), i);
             ir.var_decl.push(0); // TODO: !!
-            ir.var_type.push(param.param_type);
+            ir.var_type.push(param.param_type.clone());
         }
 
         ir.add(&func_def.body, scope);
@@ -35,7 +35,7 @@ impl Func {
         return Func {
             name: func_def.name.clone(),
             num_params,
-            return_type: func_def.return_type,
+            return_type: func_def.return_type.clone(),
             ir,
         };
     }
@@ -130,7 +130,7 @@ impl Blocks {
 
     fn add_op(&mut self, op: Op, a: Var, b: Var) -> usize {
         let var = self.new_var(match op {
-            Op::Add | Op::Div | Op::Sub | Op::Mul => self.var_type[a],
+            Op::Add | Op::Div | Op::Sub | Op::Mul => self.var_type[a].clone(),
             Op::Eq | Op::Ne | Op::Ge | Op::Gt | Op::Le | Op::Lt => Type::Bool,
         });
         self.insts.push(Inst::Op(var, op, a, b));
@@ -138,7 +138,7 @@ impl Blocks {
     }
 
     fn add_uop(&mut self, op: UOp, a: Var) -> usize {
-        let var = self.new_var(self.var_type[a]);
+        let var = self.new_var(self.var_type[a].clone());
         self.insts.push(Inst::UOp(var, op, a));
         return var;
     }
@@ -313,7 +313,7 @@ impl Blocks {
                         self.add_arg_to_jump(b_jump, scope.get(key).unwrap());
                     }
 
-                    let t = self.var_type[scope.get(key).unwrap()];
+                    let t = self.var_type[scope.get(key).unwrap()].clone();
                     scope.assign(key.clone(), self.add_param_to_block(out_block, t));
                 }
 
@@ -322,7 +322,7 @@ impl Blocks {
 
                     if !a_vars.contains_key(key) {
                         self.add_arg_to_jump(a_jump, scope.get(key).unwrap());
-                        let t = self.var_type[scope.get(key).unwrap()];
+                        let t = self.var_type[scope.get(key).unwrap()].clone();
                         scope.assign(key.clone(), self.add_param_to_block(out_block, t));
                     }
                 }
@@ -331,7 +331,7 @@ impl Blocks {
                     self.add_arg_to_jump(a_jump, a_ret);
                     self.add_arg_to_jump(b_jump, b_ret);
 
-                    self.add_param_to_block(out_block, self.var_type[a_ret])
+                    self.add_param_to_block(out_block, self.var_type[a_ret].clone())
                 } else {
                     NO_VALUE
                 }
@@ -389,7 +389,7 @@ impl Blocks {
                 for name in body_vars.keys() {
                     let old = scope.get(name).unwrap();
                     let arg = *body_vars.get(name).unwrap();
-                    let new = self.add_param_to_block(cond_block, self.var_type[old]);
+                    let new = self.add_param_to_block(cond_block, self.var_type[old].clone());
 
                     self.add_arg_to_jump(entry_jump, old);
                     self.add_arg_to_jump(body_jump, arg);
@@ -409,7 +409,14 @@ impl Blocks {
                 0
             }
             Ast::Error => self.add_consts(Value::Err),
-            Ast::Array(_values) => 0,
+            Ast::Array(nodes) => {
+                let vars = nodes
+                    .iter()
+                    .map(|node| self.add(&node, scope))
+                    .collect::<Vec<usize>>();
+
+                return vars[0];
+            }
         }
     }
 
@@ -465,16 +472,16 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<V
         match &func.ir.insts[step - 1] {
             Inst::Op(var, op, a, b) => {
                 regs[*var] = match op {
-                    Op::Add => regs[*a].add(regs[*b]),
-                    Op::Sub => regs[*a].sub(regs[*b]),
-                    Op::Mul => regs[*a].mul(regs[*b]),
-                    Op::Div => regs[*a].div(regs[*b]),
-                    Op::Eq => regs[*a].eq(regs[*b]),
-                    Op::Ne => regs[*a].ne(regs[*b]),
-                    Op::Le => regs[*a].le(regs[*b]),
-                    Op::Lt => regs[*a].lt(regs[*b]),
-                    Op::Ge => regs[*a].ge(regs[*b]),
-                    Op::Gt => regs[*a].gt(regs[*b]),
+                    Op::Add => regs[*a].add(regs[*b].clone()),
+                    Op::Sub => regs[*a].sub(regs[*b].clone()),
+                    Op::Mul => regs[*a].mul(regs[*b].clone()),
+                    Op::Div => regs[*a].div(regs[*b].clone()),
+                    Op::Eq => regs[*a].eq(regs[*b].clone()),
+                    Op::Ne => regs[*a].ne(regs[*b].clone()),
+                    Op::Le => regs[*a].le(regs[*b].clone()),
+                    Op::Lt => regs[*a].lt(regs[*b].clone()),
+                    Op::Ge => regs[*a].ge(regs[*b].clone()),
+                    Op::Gt => regs[*a].gt(regs[*b].clone()),
                 };
             }
             Inst::UOp(var, op, a) => {
@@ -484,10 +491,10 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<V
                 };
             }
             Inst::Const(var, val) => {
-                regs[*var] = *val;
+                regs[*var] = val.clone();
             }
             Inst::Call(var, func_id_reg, param_regs) => {
-                let args = param_regs.iter().map(|reg| regs[*reg]).collect();
+                let args = param_regs.iter().map(|reg| regs[*reg].clone()).collect();
                 regs[*var] = exec_ir(&funcs[*func_id_reg], funcs, mem, args);
             }
             Inst::JumpTo(block, args) => {
@@ -496,7 +503,7 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<V
                 let (first_param, num_params) = func.ir.block_params[*block];
 
                 for i in 0..num_params {
-                    regs[first_param + i] = regs[args[i]];
+                    regs[first_param + i] = regs[args[i]].clone();
                 }
             }
             Inst::Branch(cond, (a, b)) => {
@@ -507,7 +514,7 @@ pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<V
                 }
             }
             Inst::Return(var) => {
-                return regs[*var];
+                return regs[*var].clone();
             }
         }
     }

@@ -12,6 +12,7 @@ impl Type {
             Type::I32 => "i32",
             Type::Bool => "i32",
             Type::F64 => "f64",
+            Type::Tuple(..) => unimplemented!(),
         }
     }
 
@@ -19,6 +20,7 @@ impl Type {
         match self {
             Type::Bool | Type::I32 => 0x7F,
             Type::F64 => 0x7C,
+            Type::Tuple(..) => unimplemented!(),
         }
     }
 }
@@ -30,27 +32,27 @@ impl<'a> Module<'a> {
         let mut b = vec![];
 
         // open module
-        writeln!(b, "(module");
+        let _ = writeln!(b, "(module");
 
         // add the funcs
         for (i, func) in self.funcs.iter().enumerate() {
             // open function
-            writeln!(b, "(func ${}", i);
+            let _ = writeln!(b, "(func ${}", i);
 
             // all functions should be exported
-            writeln!(b, "{TAB}(export \"{}\")", func.name);
+            let _ = writeln!(b, "{TAB}(export \"{}\")", func.name);
 
             // add params
             for var in 0..func.num_params {
-                writeln!(b, "{TAB}(param ${var} {})", func.ir.var_type[var].to_wat());
+                let _ = writeln!(b, "{TAB}(param ${var} {})", func.ir.var_type[var].to_wat());
             }
 
             // result type
-            writeln!(b, "{TAB}(result {})", func.return_type.to_wat());
+            let _ = writeln!(b, "{TAB}(result {})", func.return_type.to_wat());
 
             // add locals
             for var in func.num_params..func.ir.num_vars {
-                writeln!(b, "{TAB}(local ${var} {})", func.ir.var_type[var].to_wat());
+                let _ = writeln!(b, "{TAB}(local ${var} {})", func.ir.var_type[var].to_wat());
             }
 
             // add code
@@ -59,11 +61,11 @@ impl<'a> Module<'a> {
             b.append(&mut builder.buffer);
 
             // close function
-            writeln!(b, ")");
+            let _ = writeln!(b, ")");
         }
 
         // close module
-        writeln!(b, ")");
+        let _ = writeln!(b, ")");
 
         return b;
     }
@@ -188,7 +190,7 @@ fn add_block(f: &mut impl WasmOrWatBuilder, func: &Func, block: usize) -> Option
             Inst::Op(var, op, a, b) => {
                 f.get_local(*a);
                 f.get_local(*b);
-                match (op, func.ir.var_type[*a]) {
+                match (op, func.ir.var_type[*a].clone()) {
                     (Op::Add, Type::I32) => f.add_inst(WasmInst::I32Add),
                     (Op::Add, Type::F64) => f.add_inst(WasmInst::F64Add),
                     (Op::Sub, Type::I32) => f.add_inst(WasmInst::I32Sub),
