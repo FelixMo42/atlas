@@ -1,6 +1,5 @@
-use crate::ir::*;
-use crate::parser::*;
-use crate::value::*;
+use crate::core::*;
+use crate::utils::*;
 
 use std::collections::HashMap;
 
@@ -43,10 +42,10 @@ impl<'a> Module<'a> {
 
     pub fn exec(&self, name: &str, args: Vec<Value>) -> Value {
         if let Some(func) = self.get(name) {
-            let memory = &mut vec![];
+            let memory = &mut Mem::default();
             return exec_ir(func, &self.funcs, memory, args);
         } else {
-            return Value::Err;
+            unimplemented!();
         }
     }
 

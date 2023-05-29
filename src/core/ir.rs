@@ -1,6 +1,4 @@
-use crate::module::*;
-use crate::parser::*;
-use crate::value::*;
+use crate::core::*;
 
 type Var = usize;
 pub type FuncId = usize;
@@ -12,7 +10,7 @@ const NO_VALUE: Var = usize::MAX;
 pub struct Func {
     pub name: String,
     pub num_params: usize,
-    pub return_type: Type,
+    pub return_type: TypeDef,
     pub ir: Blocks,
 }
 
@@ -91,7 +89,7 @@ pub struct Blocks {
 
     pub num_vars: usize,
     pub var_decl: Vec<usize>,
-    pub var_type: Vec<Type>,
+    pub var_type: Vec<TypeDef>,
 
     pub blocks: Vec<usize>,
     pub block_params: Vec<(usize, usize)>,
@@ -111,7 +109,7 @@ impl Blocks {
         };
     }
 
-    fn new_var(&mut self, t: Type) -> Var {
+    fn new_var(&mut self, t: TypeDef) -> Var {
         self.var_type.push(t);
         self.var_decl.push(self.insts.len() + 1);
         self.num_vars += 1;
@@ -131,7 +129,7 @@ impl Blocks {
     fn add_op(&mut self, op: Op, a: Var, b: Var) -> usize {
         let var = self.new_var(match op {
             Op::Add | Op::Div | Op::Sub | Op::Mul => self.var_type[a].clone(),
-            Op::Eq | Op::Ne | Op::Ge | Op::Gt | Op::Le | Op::Lt => Type::Bool,
+            Op::Eq | Op::Ne | Op::Ge | Op::Gt | Op::Le | Op::Lt => TypeDef::Bool,
         });
         self.insts.push(Inst::Op(var, op, a, b));
         return var;
@@ -160,7 +158,7 @@ impl Blocks {
         };
     }
 
-    fn add_param_to_block(&mut self, block: Block, t: Type) -> Var {
+    fn add_param_to_block(&mut self, block: Block, t: TypeDef) -> Var {
         let var = self.new_var(t);
         self.block_params[block].1 += 1;
         return var;
@@ -217,10 +215,10 @@ impl Blocks {
 
     fn add(&mut self, ast: &Ast, scope: &mut Scope) -> usize {
         match ast {
-            Ast::TypeDef(..) | Ast::FuncDef(..) => unreachable!(),
-            Ast::I32(num) => self.add_consts(Value::I32(*num)),
-            Ast::F64(num) => self.add_consts(Value::F64(*num)),
-            Ast::Bool(val) => self.add_consts(Value::Bool(*val)),
+            Ast::FuncDef(..) => unreachable!(),
+            Ast::I32(num) => self.add_consts(Value::i32(*num)),
+            Ast::F64(num) => self.add_consts(Value::f64(*num)),
+            Ast::Bool(val) => self.add_consts(Value::bool(*val)),
             Ast::Add(a, b) => {
                 let a = self.add(a, scope);
                 let b = self.add(b, scope);
@@ -340,7 +338,7 @@ impl Blocks {
             Ast::FuncCall(func, args) => {
                 let func = self.add(func, scope);
                 let arg_regs = args.iter().map(|arg| self.add(arg, scope)).collect();
-                let var = self.new_var(Type::I32); // TODO: fix type
+                let var = self.new_var(TypeDef::I32); // TODO: fix type
                 self.insts.push(Inst::Call(var, func, arg_regs));
                 var
             }
@@ -408,7 +406,7 @@ impl Blocks {
                 self.insts.push(Inst::Return(reg));
                 0
             }
-            Ast::Error => self.add_consts(Value::Err),
+            Ast::Error => unimplemented!(),
             Ast::Array(nodes) => {
                 let vars = nodes
                     .iter()
@@ -456,66 +454,5 @@ impl Blocks {
         }
 
         return Ok(());
-    }
-}
-
-pub fn exec_ir(func: &Func, funcs: &Vec<Func>, mem: &mut Vec<Value>, args: Vec<Value>) -> Value {
-    let mut step = 0;
-    let mut regs: Vec<Value> = vec![Value::Unit; func.ir.num_vars];
-
-    for (i, arg) in args.into_iter().enumerate() {
-        regs[i] = arg;
-    }
-
-    loop {
-        step += 1;
-        match &func.ir.insts[step - 1] {
-            Inst::Op(var, op, a, b) => {
-                regs[*var] = match op {
-                    Op::Add => regs[*a].add(regs[*b].clone()),
-                    Op::Sub => regs[*a].sub(regs[*b].clone()),
-                    Op::Mul => regs[*a].mul(regs[*b].clone()),
-                    Op::Div => regs[*a].div(regs[*b].clone()),
-                    Op::Eq => regs[*a].eq(regs[*b].clone()),
-                    Op::Ne => regs[*a].ne(regs[*b].clone()),
-                    Op::Le => regs[*a].le(regs[*b].clone()),
-                    Op::Lt => regs[*a].lt(regs[*b].clone()),
-                    Op::Ge => regs[*a].ge(regs[*b].clone()),
-                    Op::Gt => regs[*a].gt(regs[*b].clone()),
-                };
-            }
-            Inst::UOp(var, op, a) => {
-                regs[*var] = match op {
-                    UOp::Neg => regs[*a].neg(),
-                    UOp::Not => regs[*a].not(),
-                };
-            }
-            Inst::Const(var, val) => {
-                regs[*var] = val.clone();
-            }
-            Inst::Call(var, func_id_reg, param_regs) => {
-                let args = param_regs.iter().map(|reg| regs[*reg].clone()).collect();
-                regs[*var] = exec_ir(&funcs[*func_id_reg], funcs, mem, args);
-            }
-            Inst::JumpTo(block, args) => {
-                step = func.ir.blocks[*block];
-
-                let (first_param, num_params) = func.ir.block_params[*block];
-
-                for i in 0..num_params {
-                    regs[first_param + i] = regs[args[i]].clone();
-                }
-            }
-            Inst::Branch(cond, (a, b)) => {
-                if regs[*cond].as_bool() {
-                    step = func.ir.blocks[*a];
-                } else {
-                    step = func.ir.blocks[*b];
-                }
-            }
-            Inst::Return(var) => {
-                return regs[*var].clone();
-            }
-        }
     }
 }

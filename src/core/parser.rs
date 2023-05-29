@@ -1,5 +1,5 @@
-use crate::lexer::*;
-use crate::value::*;
+use crate::core::lexer::*;
+use crate::core::value::*;
 
 #[derive(Debug, Clone)]
 pub enum Ast {
@@ -45,26 +45,20 @@ pub enum Ast {
 
     // defintions
     FuncDef(FuncDef),
-    TypeDef(TypeDef),
-}
-
-#[derive(Debug, Clone)]
-pub struct TypeDef {
-    fields: Vec<Param>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FuncDef {
     pub name: String,
     pub params: Vec<Param>,
-    pub return_type: Type,
+    pub return_type: TypeDef,
     pub body: Box<Ast>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Param {
     pub name: String,
-    pub param_type: Type,
+    pub param_type: TypeDef,
 }
 
 fn check(lex: &mut Lexer, token: Token) -> bool {
@@ -119,12 +113,6 @@ fn parse_value(lex: &mut Lexer) -> Ast {
             let save = lex.save();
             if check(lex, Token::Set) {
                 Ast::Assign(ident, Box::new(parse_expr(lex)))
-            } else if check(lex, Token::Open('{')) {
-                let mut fields = vec![];
-                while !check(lex, Token::Close('}')) {
-                    fields.push(parse_param(lex).unwrap());
-                }
-                return Ast::TypeDef(TypeDef { fields });
             } else if check(lex, Token::Open('(')) {
                 let mut params = vec![];
                 if !check(lex, Token::Close(')')) {
@@ -256,24 +244,12 @@ fn parse_expr(lex: &mut Lexer) -> Ast {
     return parse_cmp(lex);
 }
 
-fn parse_type(lex: &mut Lexer) -> Type {
+fn parse_type(lex: &mut Lexer) -> TypeDef {
     match lex.next() {
-        Token::Ident("I32") => Type::I32,
-        Token::Ident("F64") => Type::F64,
-        Token::Ident("Bool") => Type::Bool,
-        Token::Ident("Tuple") => {
-            check(lex, Token::Open('('));
-            let mut parts = vec![];
-            while !check(lex, Token::Close(')')) {
-                parts.push(parse_type(lex));
-                check(lex, Token::Comma);
-            }
-            Type::Tuple(parts)
-        }
-        tok => {
-            println!(">> {:?}", tok);
-            unimplemented!();
-        }
+        Token::Ident("I32") => TypeDef::I32,
+        Token::Ident("F64") => TypeDef::F64,
+        Token::Ident("Bool") => TypeDef::Bool,
+        _ => unimplemented!(),
     }
 }
 
