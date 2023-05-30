@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use std::{fmt::Display, mem::size_of};
 
 use crate::utils::Mem;
 
@@ -21,7 +21,7 @@ impl TypeDef {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Value {
     def: TypeDef,
     mem: Mem,
@@ -90,6 +90,17 @@ impl Value {
         Value {
             def: TypeDef::Bool,
             mem: Mem::new(if value { vec![1] } else { vec![0] }),
+        }
+    }
+}
+
+impl Display for TypeDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TypeDef::I32 => write!(f, "I32"),
+            TypeDef::F64 => write!(f, "F64"),
+            TypeDef::Bool => write!(f, "Bool"),
+            _ => unimplemented!(),
         }
     }
 }

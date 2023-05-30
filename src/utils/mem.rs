@@ -1,6 +1,6 @@
 use crate::core::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Mem {
     pub bytes: Vec<u8>,
 }
