@@ -255,7 +255,7 @@ fn parse_type(lex: &mut Lexer) -> TypeDef {
 
 fn parse_param(lex: &mut Lexer) -> Option<Param> {
     let tok = lex.next();
-    println!(">> {:?}", tok);
+
     let name = if let Token::Ident(name) = tok {
         name.to_string()
     } else {
@@ -280,8 +280,6 @@ pub fn parse(src: &str) -> Vec<Ast> {
     while !lex.is_done() {
         funcs.push(parse_expr(&mut lex))
     }
-
-    println!("{funcs:?}");
 
     return funcs;
 }

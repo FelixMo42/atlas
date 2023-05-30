@@ -42,6 +42,10 @@ impl Func {
         writeln!(buffer, "function {} ():", self.name)?;
         self.ir.log(buffer)
     }
+
+    pub fn get_var_type(&self, var: usize) -> TypeDef {
+        return self.ir.var_type[var];
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -1,6 +1,8 @@
+use crate::core::*;
+
 #[derive(Clone, Debug)]
 pub struct Mem {
-    bytes: Vec<u8>,
+    pub bytes: Vec<u8>,
 }
 
 impl Mem {
@@ -18,10 +20,12 @@ impl Mem {
 }
 
 impl Mem {
-    pub fn get(&self, reg: usize, size: usize) -> Mem {
-        Mem {
-            bytes: self.bytes[reg..reg + size].iter().cloned().collect(),
-        }
+    pub fn get(&self, reg: usize, def: TypeDef) -> Value {
+        let bytes = Mem {
+            bytes: self.bytes[reg..reg + def.size()].iter().cloned().collect(),
+        };
+
+        return Value::new(def, bytes);
     }
 
     pub fn set(&mut self, reg: usize, mem: &Mem) {
@@ -35,17 +39,4 @@ impl Mem {
             .try_into()
             .expect("failed to read slice from array")
     }
-
-    pub fn get_u32(&self, reg: usize) -> u32 {
-        u32::from_be_bytes(self.get_slice(reg))
-    }
-
-    // pub fn set_u32(&mut self, reg: usize, value: u32) {
-    //     let new = u32::to_be_bytes(value);
-
-    //     self.bytes[reg + 0] = new[0];
-    //     self.bytes[reg + 1] = new[1];
-    //     self.bytes[reg + 2] = new[2];
-    //     self.bytes[reg + 3] = new[3];
-    // }
 }

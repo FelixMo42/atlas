@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use crate::utils::Mem;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TypeDef {
     Unit,
     Bool,
@@ -28,6 +28,10 @@ pub struct Value {
 }
 
 impl Value {
+    pub fn new(def: TypeDef, mem: Mem) -> Value {
+        return Value { def, mem };
+    }
+
     pub fn get_size(&self) -> usize {
         return self.get_type().size();
     }
@@ -38,6 +42,32 @@ impl Value {
 
     pub fn get_bytes(&self) -> &Mem {
         return &self.mem;
+    }
+}
+
+impl Value {
+    pub fn as_i32(&self) -> i32 {
+        if self.def != TypeDef::I32 {
+            panic!("No an int!");
+        }
+
+        i32::from_be_bytes(self.mem.get_slice(0))
+    }
+
+    pub fn as_f64(&self) -> f64 {
+        if self.def != TypeDef::F64 {
+            panic!("No a float!");
+        }
+
+        f64::from_be_bytes(self.mem.get_slice(0))
+    }
+
+    pub fn as_bool(&self) -> bool {
+        if self.def != TypeDef::Bool {
+            panic!("No a bool!");
+        }
+
+        return self.mem.bytes[0] == 1;
     }
 }
 
@@ -62,10 +92,4 @@ impl Value {
             mem: Mem::new(if value { vec![1] } else { vec![0] }),
         }
     }
-}
-
-#[derive(Debug)]
-pub struct ValueRef {
-    def: TypeDef,
-    reg: usize,
 }

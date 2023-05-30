@@ -1,26 +1,23 @@
-use crate::ir::*;
-use crate::leb128::*;
-use crate::module::*;
+use crate::core::*;
 use crate::utils::*;
-use crate::value::*;
 
 use std::io::Write;
 
-impl Type {
+impl TypeDef {
     fn to_wat(&self) -> &str {
         match self {
-            Type::I32 => "i32",
-            Type::Bool => "i32",
-            Type::F64 => "f64",
-            Type::Tuple(..) => unimplemented!(),
+            TypeDef::I32 => "i32",
+            TypeDef::Bool => "i32",
+            TypeDef::F64 => "f64",
+            _ => unimplemented!(),
         }
     }
 
     fn to_wasm(&self) -> u8 {
         match self {
-            Type::Bool | Type::I32 => 0x7F,
-            Type::F64 => 0x7C,
-            Type::Tuple(..) => unimplemented!(),
+            TypeDef::Bool | TypeDef::I32 => 0x7F,
+            TypeDef::F64 => 0x7C,
+            _ => unimplemented!(),
         }
     }
 }
@@ -191,28 +188,28 @@ fn add_block(f: &mut impl WasmOrWatBuilder, func: &Func, block: usize) -> Option
                 f.get_local(*a);
                 f.get_local(*b);
                 match (op, func.ir.var_type[*a].clone()) {
-                    (Op::Add, Type::I32) => f.add_inst(WasmInst::I32Add),
-                    (Op::Add, Type::F64) => f.add_inst(WasmInst::F64Add),
-                    (Op::Sub, Type::I32) => f.add_inst(WasmInst::I32Sub),
-                    (Op::Sub, Type::F64) => f.add_inst(WasmInst::F64Sub),
-                    (Op::Mul, Type::I32) => f.add_inst(WasmInst::I32Mul),
-                    (Op::Mul, Type::F64) => f.add_inst(WasmInst::F64Mul),
-                    (Op::Div, Type::I32) => f.add_inst(WasmInst::I32DivS),
-                    (Op::Div, Type::F64) => f.add_inst(WasmInst::F64DivS),
-                    (Op::Eq, Type::Bool) => f.add_inst(WasmInst::I32Eq),
-                    (Op::Eq, Type::I32) => f.add_inst(WasmInst::I32Eq),
-                    (Op::Eq, Type::F64) => f.add_inst(WasmInst::F64Eq),
-                    (Op::Ne, Type::Bool) => f.add_inst(WasmInst::I32Ne),
-                    (Op::Ne, Type::I32) => f.add_inst(WasmInst::I32Ne),
-                    (Op::Ne, Type::F64) => f.add_inst(WasmInst::F64Ne),
-                    (Op::Ge, Type::I32) => f.add_inst(WasmInst::I32GeS),
-                    (Op::Ge, Type::F64) => f.add_inst(WasmInst::F64GeS),
-                    (Op::Gt, Type::I32) => f.add_inst(WasmInst::I32GtS),
-                    (Op::Gt, Type::F64) => f.add_inst(WasmInst::F64GtS),
-                    (Op::Le, Type::I32) => f.add_inst(WasmInst::I32LeS),
-                    (Op::Le, Type::F64) => f.add_inst(WasmInst::F64LeS),
-                    (Op::Lt, Type::I32) => f.add_inst(WasmInst::I32LtS),
-                    (Op::Lt, Type::F64) => f.add_inst(WasmInst::F64LtS),
+                    (Op::Add, TypeDef::I32) => f.add_inst(WasmInst::I32Add),
+                    (Op::Add, TypeDef::F64) => f.add_inst(WasmInst::F64Add),
+                    (Op::Sub, TypeDef::I32) => f.add_inst(WasmInst::I32Sub),
+                    (Op::Sub, TypeDef::F64) => f.add_inst(WasmInst::F64Sub),
+                    (Op::Mul, TypeDef::I32) => f.add_inst(WasmInst::I32Mul),
+                    (Op::Mul, TypeDef::F64) => f.add_inst(WasmInst::F64Mul),
+                    (Op::Div, TypeDef::I32) => f.add_inst(WasmInst::I32DivS),
+                    (Op::Div, TypeDef::F64) => f.add_inst(WasmInst::F64DivS),
+                    (Op::Eq, TypeDef::Bool) => f.add_inst(WasmInst::I32Eq),
+                    (Op::Eq, TypeDef::I32) => f.add_inst(WasmInst::I32Eq),
+                    (Op::Eq, TypeDef::F64) => f.add_inst(WasmInst::F64Eq),
+                    (Op::Ne, TypeDef::Bool) => f.add_inst(WasmInst::I32Ne),
+                    (Op::Ne, TypeDef::I32) => f.add_inst(WasmInst::I32Ne),
+                    (Op::Ne, TypeDef::F64) => f.add_inst(WasmInst::F64Ne),
+                    (Op::Ge, TypeDef::I32) => f.add_inst(WasmInst::I32GeS),
+                    (Op::Ge, TypeDef::F64) => f.add_inst(WasmInst::F64GeS),
+                    (Op::Gt, TypeDef::I32) => f.add_inst(WasmInst::I32GtS),
+                    (Op::Gt, TypeDef::F64) => f.add_inst(WasmInst::F64GtS),
+                    (Op::Le, TypeDef::I32) => f.add_inst(WasmInst::I32LeS),
+                    (Op::Le, TypeDef::F64) => f.add_inst(WasmInst::F64LeS),
+                    (Op::Lt, TypeDef::I32) => f.add_inst(WasmInst::I32LtS),
+                    (Op::Lt, TypeDef::F64) => f.add_inst(WasmInst::F64LtS),
 
                     _ => unimplemented!(),
                 }
@@ -221,12 +218,12 @@ fn add_block(f: &mut impl WasmOrWatBuilder, func: &Func, block: usize) -> Option
             Inst::UOp(var, op, a) => {
                 match op {
                     UOp::Neg => match func.ir.var_type[*a] {
-                        Type::I32 => {
+                        TypeDef::I32 => {
                             f.add_const_i32(0);
                             f.get_local(*a);
                             f.add_inst(WasmInst::I32Sub);
                         }
-                        Type::F64 => {
+                        TypeDef::F64 => {
                             f.get_local(*a);
                             f.add_inst(WasmInst::F64Neg);
                         }
@@ -237,12 +234,11 @@ fn add_block(f: &mut impl WasmOrWatBuilder, func: &Func, block: usize) -> Option
                 f.set_local(*var);
             }
             Inst::Const(var, val) => {
-                match val {
-                    Value::Bool(true) => f.add_const_i32(1),
-                    Value::Bool(false) => f.add_const_i32(0),
-                    Value::F64(val) => f.add_const_f64(*val),
-                    Value::I32(val) => f.add_const_i32(*val),
-                    _ => unreachable!(),
+                match val.get_type() {
+                    TypeDef::Bool => f.add_const_i32(if val.as_bool() { 1 } else { 0 }),
+                    TypeDef::F64 => f.add_const_f64(val.as_f64()),
+                    TypeDef::I32 => f.add_const_i32(val.as_i32()),
+                    _ => unimplemented!(),
                 }
                 f.set_local(*var);
             }

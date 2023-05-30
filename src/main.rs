@@ -1,6 +1,6 @@
 mod core;
-// mod server;
-// mod targets;
+mod server;
+mod targets;
 mod utils;
 
 use crate::core::*;
@@ -8,15 +8,13 @@ use crate::core::*;
 fn main() {
     let module = Module::from_src(
         r"
-            main() {
+            main(): I32 {
                 let x = 4242
                 let y = 8008
-                return x
+                return x + y
             }
         ",
     );
 
-    // module.log()
-
-    module.exec("main", vec![]);
+    println!("{:?}", module.exec("main", vec![]).as_i32());
 }
